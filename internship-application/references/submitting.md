@@ -78,4 +78,4 @@ If any check fails, don't submit. Stop as in Fill all, and put the failed check 
 
 ### Batch runs
 
-After the combined checkpoint (unless the user said auto), fill every posting as in Fill all and gather everything that needs the user into one hand-off. When they've answered, continue each form, and submit each one that passes the check. Report one line per posting: submitted (with the time), or stopped and why.
+After the combined checkpoint (unless the user said auto), fill every posting as in Fill all and gather everything that needs the user into one hand-off. When they've answered, continue each form, and submit each one that passes the check. With subagents (`references/batch.md`), they fill and run the check, and you click Submit yourself. Report one line per posting: submitted (with the time), or stopped and why.

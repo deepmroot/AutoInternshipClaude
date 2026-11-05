@@ -155,10 +155,10 @@ Open the form. If the site offers "Autofill from resume" (Workday does), accept 
 
 **Keep browser work cheap.** Each browser call re-reads the whole conversation, and each screenshot stays in it for the rest of the run, so the number of calls and screenshots is what a batch costs. A Workday application has five or more steps. So:
 
-- Press the Fill button and read its report in one batch: click **Fill with AutoInternship**, wait about 10 seconds (a form with many dropdowns takes 5 to 8), then `get_page_text`. The report is in the page text at the top of the form, starting "AutoInternship report:". If it says it's still filling, wait 5 seconds and read again. (`read_page` on the panel shows only its name, not the report.)
+- Press the Fill button and read its report in one browser batch: click **Fill with AutoInternship**, wait about 10 seconds (a form with many dropdowns takes 5 to 8), then `get_page_text`. The report is in the page text at the top of the form, starting "AutoInternship report:". If it says it's still filling, wait 5 seconds and read again. (`read_page` on the panel shows only its name, not the report.)
 - If the form is embedded in a frame on the company's site, open the frame's own address in the tab first (for Greenhouse, the `job-boards.greenhouse.io/embed/job_app?...` link), so the page text has the form.
 - Find fields from the page's list of form controls (`read_page` with the interactive filter, or `find` for one field), not from screenshots. Set values directly on the element (`form_input`) instead of clicking and typing.
-- Custom dropdowns: for one you can type into (Greenhouse and most others), click it, type the option's text and press Enter, in one batch. For a list button (Workday's "Select One"), click it and `find` the option in one batch, then click the option's reference. Don't screenshot to see the options or to check each pick.
+- Custom dropdowns: for one you can type into (Greenhouse and most others), click it, type the option's text and press Enter, in one browser batch. For a list button (Workday's "Select One"), click it and `find` the option in one browser batch, then click the option's reference. Don't screenshot to see the options or to check each pick.
 - Take one screenshot per page or step, after filling it and before Save and Continue, to check that nothing is red or empty. Take another only when something didn't take.
 - Don't read the posting again on the application page; it's in job-posting.md.
 - After Save and Continue, wait for the next step's heading (a short `find`) before clicking the Fill button again, rather than screenshotting the loading page.
@@ -246,13 +246,6 @@ End with: role, company and deadline, where the files are, what you filled, what
 
 ## Batch runs
 
-When the user says to work through jobs.txt (or gives several links):
+When the user says to work through jobs.txt (or gives several links), read `references/batch.md` first. It gives each posting its own subagent, so this conversation doesn't re-read every resume and every form page on every call, which is most of what a batch costs.
 
-1. Fetch the whole queue in one call: `python scripts/fetch_posting.py --jobs "<folder>/jobs.txt" --out-dir "<scratch>/postings" --tracker "<folder>/tracker.xlsx"` (or pass the links instead of `--jobs`). Then do steps 1 to 3 for each posting, skipping ones already in the tracker and opening in the browser only the ones it couldn't fetch.
-2. Go in deadline order, soonest first, then postings with no deadline, newest first, since many internships review applications as they arrive. The fetch result has each posting's deadline and posted date.
-3. One combined checkpoint.
-4. Fill each in its own tab (with the Fill button on each page and step, as in step 5) up to the point where it needs the user: a sign-in or new account, or a file you can't attach. Then hand everything over at once in one short list, one line per tab: company and role, and what's needed ("sign in to Workday", "create an account", "attach C:\\...\\Maya_Chen_Resume_Visa.pdf"). When the user says they're done, continue each form, and repeat once more if new steps came up. This way the user is interrupted once or twice for the whole batch, not once per application. In Fill all and Submit, the same message asks the questions the profile didn't answer, grouped so one answer covers every form.
-5. Record and log each. Stop before submit on every one, except in Submit mode, where each one that passes the final check is submitted (`references/submitting.md`).
-6. Report once, one line per posting.
-
-If one posting hits a wall that the user can't clear in the hand-off (a broken page, a closed posting, an assessment), log it as `Needs you` and move on. Afterwards, move processed links in jobs.txt below the `# done` line, editing the file in place.
+Start by fetching the whole queue in one call: `python scripts/fetch_posting.py --jobs "<folder>/jobs.txt" --out-dir "<scratch>/postings" --tracker "<folder>/tracker.xlsx"` (or pass the links instead of `--jobs`). The fetch result has each posting's deadline and posted date for the order. The rest is in batch.md: tailoring in subagents, one combined checkpoint, filling one application at a time, one hand-off for the whole batch, Submit (in Submit mode) done by you, and one report.
