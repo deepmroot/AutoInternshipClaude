@@ -4,7 +4,7 @@ Read this at the start of a request in Fill all or Submit mode (SKILL.md, "Modes
 
 ## Fill all: everything except Submit
 
-The goal is a form where the only thing left is the Submit button. In Review mode you leave consent boxes, signatures and unanswered questions on the page, so the user has to read through every form. In Fill all the user has asked you to handle those too, so on top of the rules in SKILL.md step 5:
+The goal is a form where the only thing left is the Submit button. In Review mode you leave consent boxes, signatures and unanswered questions on the page, so the user has to read through every form. In Fill all the user has asked you to handle those too, so on top of the rules in `references/filling.md`:
 
 ### Consent, acknowledgement and certification boxes
 
@@ -44,7 +44,7 @@ Collect them; never guess. In past applications these were visa questions worded
 
 ### Still the user's, in every mode
 
-Sign-ins, creating accounts, passwords and verification codes; CAPTCHAs; assessments, coding challenges and video interviews; ID numbers, date of birth and bank details; and anything on LinkedIn. The resume upload stays a hand-off when you can't attach files (SKILL.md, "Attaching files"), so put it on the hand-off list too.
+Sign-ins, creating accounts, passwords and verification codes; CAPTCHAs; assessments, coding challenges and video interviews; ID numbers, date of birth and bank details; and anything on LinkedIn. The resume upload stays a hand-off when you can't attach files (`references/filling.md`, "Attaching files"), so put it on the hand-off list too.
 
 ## Submit: Fill all, then submit
 
