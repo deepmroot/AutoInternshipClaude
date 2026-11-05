@@ -26,7 +26,7 @@ On forms with several steps (Workday's **Save and Continue**), fill again on eac
 
 ## Use with Claude
 
-The `internship-application` skill in this repo reads your answers from `profile.json` and clicks the Fill button itself on each page. Then it reads the panel and works only on what's left, which is faster and uses far fewer tokens than filling every field.
+The `internship-application` skill in this repo reads your answers from `profile.json` and clicks the Fill button itself on each page. Then it reads the same report from the page text and works only on what's left, which is faster and uses far fewer tokens than filling every field.
 
 ## What it fills
 

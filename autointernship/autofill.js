@@ -51,6 +51,23 @@
     return v;
   }
 
+  // One part of a school's start or end date ("Sep 2026", "2026-09", "09/2026"): the year for a year box,
+  // the full month name for a month box, since month lists spell it out ("September") and "Sep" alone is
+  // too short to match.
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function datePart(v, label) {
+    const s = String(v || '');
+    const year = s.match(/\b(19|20)\d{2}\b/);
+    if (/\byear\b/.test(label)) return year ? year[0] : null;
+    const name = s.match(MONTH_RE);
+    if (name) return MONTHS.find((m) => m.toLowerCase().startsWith(name[0].toLowerCase().slice(0, 3))) || null;
+    const num = s.match(/\b(19|20)\d{2}[-/](\d{1,2})\b/) || s.match(/\b(\d{1,2})[-/](19|20)\d{2}\b/);
+    const n = num ? Number(num[0].startsWith('19') || num[0].startsWith('20') ? num[2] : num[1]) : 0;
+    return n >= 1 && n <= 12 ? MONTHS[n - 1] : null;
+  }
+  // Greenhouse's education section, the only place its date boxes are a school's dates (see the rules).
+  const EDU_SECTION = '[class*="education"]';
+
   // Two sponsorship answers, because many students need none for the internship itself (on CPT, for
   // example) but will need it for a full-time job later:
   //   a question that includes the future ("now or in the future")  → needsSponsorship
@@ -59,7 +76,15 @@
   // Anything else is left for you. A wrong answer here can get an offer withdrawn, so when unsure, leave it.
   const SPONSOR_LATER = /\bfuture\b|\bnow or later\b|\bat any (point|time)\b|\bever\b|\bupon graduation\b|\bafter (you )?graduat\w*|\bfull[- ]time\b|\bh-?1-?b\b/;
   const SPONSOR_THIS_ROLE = /\b(this|the) (internship|co-?op|role|position|job|opportunity)\b|\bduring (the|this|your) internship\b/;
+  // Examples in parentheses aren't the question. DoorDash asks "Will you now require immigration sponsorship
+  // ... (e.g., H-1B, E-3, TN, O-1, STEM OPT, or any immigration work authorization ...)" and, separately,
+  // "Will you in the future require ...". With the examples, the label was too long for the rule below to
+  // match, and "H-1B" in them would have given the "now" question the future answer. So rules match the
+  // label without them (see matches()), and so does the now-or-later test here.
+  const EXAMPLES = /\(\s*(e\.?\s?g\b\.?|i\.?\s?e\b\.?|(such as|for example|for instance|including|like)\b)[^)]*(\)|$)/g;
+  const noExamples = (s) => s.replace(EXAMPLES, ' ').replace(/\s+/g, ' ').trim();
   function sponsorAnswer(p, label) {
+    label = noExamples(label);
     const later = yn(p.needsSponsorship);
     const now = yn(p.needsSponsorshipForInternship);
     if (SPONSOR_LATER.test(label)) return later;
@@ -125,6 +150,13 @@
     { key: 'edu.minor', re: /\bminor\b/, max: 40, not: /\b(under|age|18|are you|parent|guardian)\b/, idx: 'education', field: 'minor' },
     { key: 'edu.field', re: /\bmajor\b|\bfield of study\b|\bdiscipline\b|\barea of study\b|\bconcentration\b|\bcourse of study\b|^subject$/, max: 50, idx: 'education', field: 'field' },
     { key: 'edu.gpa', re: /\bgpa\b|\bgrade point\b/, max: 40, idx: 'education', field: 'gpa' },
+    // Greenhouse asks for each school's dates in four boxes ("Start date month", "Start date year", "End date
+    // month", "End date year"). Its work-history rows use the same labels, so these only apply inside the
+    // education section. Claude used to fill all four by hand on every such form.
+    { key: 'edu.startMonth', re: /^start (date )?month$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'start', part: datePart },
+    { key: 'edu.startYear', re: /^start (date )?year$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'start', part: datePart },
+    { key: 'edu.endMonth', re: /^end (date )?month$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'end', part: datePart },
+    { key: 'edu.endYear', re: /^end (date )?year$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'end', part: datePart },
     { re: /\bgraduation (date|year|month|term|semester)\b|\byear of graduation\b|\bgrad(uation)? (year|date)\b|\bexpected (grad|graduation)\b|\bwhen (do|will) you graduate\b|\bgraduating (year|class)\b|\bclass of\b/, max: 70, kinds: ['text', 'select'], value: (p, label) => gradValue(p.expectedGraduation || edu0(p).end, label) },
 
     // Student and internship questions
@@ -279,12 +311,14 @@
   }
 
   function matches(rule, label, hints, el) {
+    if (rule.within && !el.closest(rule.within)) return false;
     const texts = label ? [label, ...hints] : hints;
     if (rule.not && texts.some((t) => rule.not.test(t))) return false;
     const ac = acToken(el);
     if (rule.ac && ac && rule.ac.includes(ac)) return true;
     if (rule.type && el.type === rule.type) return true;
-    if (label && (!rule.max || label.length <= rule.max) && rule.re.test(label)) return true;
+    const q = label && noExamples(label); // `not` above still sees the whole label
+    if (q && (!rule.max || q.length <= rule.max) && rule.re.test(q)) return true;
     const hre = rule.hint || rule.re;
     return hints.some((h) => hre.test(h));
   }
@@ -371,6 +405,7 @@
       if (rule.idx) {
         const i = (counters[rule.key] = (counters[rule.key] ?? -1) + 1);
         v = p[rule.idx] && p[rule.idx][i] && p[rule.idx][i][rule.field];
+        if (rule.part) v = rule.part(v, label);
       } else {
         v = rule.value(p, label);
       }
@@ -772,13 +807,18 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  const shownLists = () => deepQuery(document, '[role="listbox"]').filter(isVisible);
+
   // The options of the list this dropdown opened: the listbox it points to (aria-controls / aria-owns),
-  // or else whatever listbox is showing on the page (Workday draws its list elsewhere in the page).
-  function openOptions(el) {
+  // or else a listbox that appeared after it was opened (Workday draws its list elsewhere in the page).
+  // `before` holds the lists already showing beforehand. One left open by an earlier dropdown must not
+  // count: on a live Greenhouse form, every question after the School dropdown was offered the school
+  // list, found no "Yes" in it, and was left for Claude.
+  function openOptions(el, before) {
     let lists = [];
     const id = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
     if (id) { const n = byId(el, id); if (n) lists = [n]; }
-    if (!lists.length) lists = deepQuery(document, '[role="listbox"]').filter(isVisible);
+    if (!lists.length) lists = shownLists().filter((l) => !(before && before.has(l)));
     const out = [];
     for (const l of lists) {
       for (const o of l.querySelectorAll('[role="option"]')) {
@@ -800,30 +840,37 @@
   // Returns { text } of the option chosen, or { options } (the choices seen) when it couldn't choose.
   async function fillDropdown(d) {
     const { el, box, res } = d;
+    const before = new Set(shownLists());
     if (el.tagName === 'BUTTON') {
       press(el);
     } else {
       press(box);
       // React-Select also opens on the down arrow, which works even when the browser window isn't focused.
-      if (!openOptions(el)) key(el, 'ArrowDown');
+      if (!openOptions(el, before)) key(el, 'ArrowDown');
     }
-    let options = await waitFor(() => openOptions(el), 800);
+    let options = await waitFor(() => openOptions(el, before), 800);
     let pick = options && pickOption(options, res);
 
     // Long lists (countries, schools) may only show matches after you type, so search for the answer.
     if (!pick && el.tagName === 'INPUT' && !el.readOnly && !res.pick && !res.yesno) {
       typeInto(el, res.value);
       d.typed = true;
-      pick = await waitFor(() => { const o = openOptions(el); if (o) options = o; return o && pickOption(o, res); }, 1500);
+      pick = await waitFor(() => { const o = openOptions(el, before); if (o) options = o; return o && pickOption(o, res); }, 1500);
     }
 
     if (!pick) { closeDropdown(d); return { options: options ? optionTexts(options) : [] }; }
     press(pick.el);
     await wait(150);
-    // Check it took: the box should now show the chosen option rather than its placeholder.
+    // Check it took: the box should now show the chosen option rather than its placeholder. Some show only
+    // part of it: Greenhouse's phone country box shows "+1" once "United States +1" is chosen (as "+ 1",
+    // since React writes the "+" and the "1" separately, hence the comparison without spaces).
     const shown = shownText(d);
-    const want = norm(pick.text).slice(0, 24);
-    if (!looksEmpty(shown) && shown.includes(want)) { try { el.blur(); } catch (_) { /* ignore */ } return { text: pick.text }; }
+    const want = norm(pick.text);
+    const bare = (s) => s.replace(/\s+/g, '');
+    if (!looksEmpty(shown) && (shown.includes(want.slice(0, 24)) || (bare(shown).length >= 2 && bare(want).includes(bare(shown))))) {
+      try { el.blur(); } catch (_) { /* ignore */ }
+      return { text: pick.text };
+    }
     closeDropdown(d);
     return { options: optionTexts(options) };
   }
@@ -1034,6 +1081,10 @@
       if (type === 'file') { attachResume(el, resume, stats, state); continue; }
       if (tag === 'INPUT' && !FILLABLE_TYPES.has(type)) continue;
       if (el.disabled) continue;
+      // React-Select adds a hidden copy of each required dropdown (aria-hidden, opacity 0) so the browser's
+      // own "required" check works. Nobody fills it, but counting it listed every Greenhouse dropdown twice
+      // in the report, once as an unlabeled "Select..." text box.
+      if (tag === 'INPUT' && el.getAttribute('aria-hidden') === 'true') continue;
 
       // Workday-style dropdown: a button that opens a list, showing the current choice as its text.
       if (tag === 'BUTTON') {

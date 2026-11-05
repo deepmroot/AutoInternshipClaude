@@ -153,10 +153,12 @@ Show the main changes in a few lines, eligibility notes, gaps, the PDF path and 
 
 Open the form. If the site offers "Autofill from resume" (Workday does), accept it first. Then use the AutoInternship extension if the page has its button. It fills the predictable fields in one click and tells you what's left, which saves a lot of time and tokens.
 
-**Keep browser work cheap.** A screenshot or a whole-page read costs far more than anything else in a step, and a Workday application has five or more steps. So:
+**Keep browser work cheap.** Each browser call re-reads the whole conversation, and each screenshot stays in it for the rest of the run, so the number of calls and screenshots is what a batch costs. A Workday application has five or more steps. So:
 
-- Read only the report panel: find the element labeled "AutoInternship report" and read just that (in Claude in Chrome, `find`, then `read_page` on its reference). Read the whole page text only if that fails.
-- Find fields from the page's list of form controls (`read_page` with the interactive filter, or `find` for one field), not from screenshots. Set values directly on the element (`form_input`) instead of clicking and typing. Custom dropdowns still need a click to open them and a click on the option.
+- Press the Fill button and read its report in one batch: click **Fill with AutoInternship**, wait about 10 seconds (a form with many dropdowns takes 5 to 8), then `get_page_text`. The report is in the page text at the top of the form, starting "AutoInternship report:". If it says it's still filling, wait 5 seconds and read again. (`read_page` on the panel shows only its name, not the report.)
+- If the form is embedded in a frame on the company's site, open the frame's own address in the tab first (for Greenhouse, the `job-boards.greenhouse.io/embed/job_app?...` link), so the page text has the form.
+- Find fields from the page's list of form controls (`read_page` with the interactive filter, or `find` for one field), not from screenshots. Set values directly on the element (`form_input`) instead of clicking and typing.
+- Custom dropdowns: for one you can type into (Greenhouse and most others), click it, type the option's text and press Enter, in one batch. For a list button (Workday's "Select One"), click it and `find` the option in one batch, then click the option's reference. Don't screenshot to see the options or to check each pick.
 - Take one screenshot per page or step, after filling it and before Save and Continue, to check that nothing is red or empty. Take another only when something didn't take.
 - Don't read the posting again on the application page; it's in job-posting.md.
 - After Save and Continue, wait for the next step's heading (a short `find`) before clicking the Fill button again, rather than screenshotting the loading page.
@@ -164,7 +166,7 @@ Open the form. If the site offers "Autofill from resume" (Workday does), accept 
 **With the Fill button.** The user's Chrome shows a green **Fill with AutoInternship** tab on the right edge of application pages from supported sites (Greenhouse, Lever, Ashby, Workday and others). If the form is embedded from one of them, the tab is on the right edge of the embedded form.
 
 1. Click it. A panel opens under it, starting "AutoInternship report: filled N, left M."
-2. Read the panel as above (or from the page text, or a screenshot, if that doesn't work). It has three parts:
+2. Read the report from the page text as above (from a screenshot of the panel only if the page text doesn't have it). It has three parts:
    - **Left for you or Claude**: one line per remaining field, with its kind, `*` if required, and up to 8 of its choices.
    - **Filled**: what it just entered, as `Label = value` pairs.
    - **Already filled**: what was there before, for example from the site's own resume parsing.
