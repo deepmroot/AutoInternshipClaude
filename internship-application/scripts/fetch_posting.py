@@ -44,6 +44,21 @@ class Failed(Exception):
     """A posting this script can't fetch; the message says why and what to do instead."""
 
 
+class Blocked(Failed):
+    """This computer's network refused the site. Cowork's sandbox reaches only the sites it's allowed, and its
+    proxy answers the rest with "Tunnel connection failed: 403 Forbidden"; until 2026-11-04 that read as a plain
+    connection error, so every posting silently went through the browser instead."""
+
+    def __init__(self, host):
+        self.host = host
+        super().__init__(f"this computer's network doesn't allow {host}. Open it in the browser.")
+
+
+# What to allow so every supported site works (see the "hint" in the output). Workday adds one host per company.
+ALLOW = ['boards.greenhouse.io', 'job-boards.greenhouse.io', 'boards-api.greenhouse.io', 'jobs.ashbyhq.com', 'api.ashbyhq.com',
+         'api.lever.co', 'api.smartrecruiters.com', 'ats.rippling.com', '*.myworkdayjobs.com', '*.myworkdaysite.com']
+
+
 # Being a polite client is what keeps these lookups from being blocked: say what we are, never send more than
 # one request a second to a site, and when a site says "too many requests", wait once and then give up (the
 # posting falls back to the browser) instead of retrying in a loop.
@@ -78,7 +93,10 @@ def get(url, data=None, headers=None, raw=False):
                 raise Failed('the site refused the lookup (some sites block scripts). Open it in the browser.')
             raise Failed(f'the site answered {e.code}. Open it in the browser.')
         except (urllib.error.URLError, TimeoutError, OSError) as e:
-            raise Failed(f"couldn't connect ({getattr(e, 'reason', e)}). Open it in the browser.")
+            reason = getattr(e, 'reason', e)
+            if 'tunnel connection failed' in str(reason).lower():
+                raise Blocked(host)
+            raise Failed(f"couldn't connect ({reason}). Open it in the browser.")
         except json.JSONDecodeError:
             raise Failed("the site's job data wasn't readable. Open it in the browser.")
 
@@ -155,6 +173,8 @@ def greenhouse(p):
         # link that names the board ("...?for=coinbase&token=...").
         try:
             final, page = get(f"https://boards.greenhouse.io/embed/job_app?token={p['id']}", raw=True, headers={'Accept': 'text/html'})
+        except Blocked:
+            raise
         except Failed:
             raise Failed("this company's Greenhouse board isn't public, so the posting can't be looked up from this link. "
                          'Open it in the browser.')
@@ -458,6 +478,7 @@ def main():
         rows, tracker_note = tracker_rows(a.tracker)
 
     results = []
+    blocked = set()
     for n, url in enumerate(urls, 1):
         site, ids = parse(url)
         item = {'url': url, 'site': site or 'other'}
@@ -486,10 +507,20 @@ def main():
                     item['same_posting_in_tracker'] = bool(hits)
         except Failed as e:
             item.update({'ok': False, 'error': str(e)})
+            if isinstance(e, Blocked):
+                blocked.add(e.host)
         results.append(item)
 
     failed = sum(1 for r in results if not r['ok'])
     out = {'ok': not failed, 'fetched': len(results) - failed, 'need_browser': failed, 'postings': results}
+    if blocked:
+        # Said once, so the user can fix it in a minute instead of every posting costing a browser read.
+        extra = sorted(h for h in blocked if h not in ALLOW and not h.endswith(('.myworkdayjobs.com', '.myworkdaysite.com')))
+        out['network_blocked'] = sorted(blocked)
+        out['hint'] = ("This computer's network blocks the job sites, so these postings need the browser. To fetch them "
+                       "without it, allow these domains in the Claude app's settings for code execution (network access): "
+                       + ', '.join(ALLOW + extra) + '. If wildcards (*) aren\'t accepted, add each Workday host instead, '
+                       'such as ' + (next((h for h in sorted(blocked) if 'myworkday' in h), 'nvidia.wd5.myworkdayjobs.com')) + '.')
     if tracker_note:
         out['tracker_note'] = tracker_note
     print(json.dumps(out, indent=1, ensure_ascii=False, default=str))
