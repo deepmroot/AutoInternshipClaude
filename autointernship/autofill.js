@@ -65,6 +65,33 @@
     const n = num ? Number(num[0].startsWith('19') || num[0].startsWith('20') ? num[2] : num[1]) : 0;
     return n >= 1 && n <= 12 ? MONTHS[n - 1] : null;
   }
+
+  // Graduation lists often stop short for a first-year student: the profile says Jun 2030, the form offers
+  // up to 2029. Leaving the question blocked the form, so the user chose (2026-11-07) to pick the closest
+  // date offered instead: the latest when all are earlier, the earliest when all are later, the nearest
+  // month or season within a year. The report flags each one ("Check:"), so the record shows what the form
+  // says. Only the graduation rule does this (nearestDate: true); other year questions keep exact matching.
+  const SEASONS = { winter: 1, spring: 5, summer: 8, fall: 12, autumn: 12 };
+  function whenOf(s) {
+    const t = norm(s);
+    const years = t.match(/\b(19|20)\d{2}\b/g);
+    if (!years || years.length !== 1) return null; // no date, or a span like "2029-2030" that could mean either
+    const m = t.match(MONTH_RE);
+    const season = t.match(/\b(winter|spring|summer|fall|autumn)\b/);
+    const month = m ? MONTHS.findIndex((x) => x.toLowerCase().startsWith(m[0].toLowerCase().slice(0, 3))) + 1
+      : season ? SEASONS[season[1]] : 0;
+    return Number(years[0]) * 12 + (month || 6); // a bare year counts as mid-year
+  }
+  function nearestDate(opts, value) {
+    const want = whenOf(value);
+    if (want == null) return null;
+    let best = null; let gap = Infinity;
+    for (const o of opts) {
+      const at = whenOf(o.text) ?? whenOf(o.val);
+      if (at != null && Math.abs(at - want) < gap) { gap = Math.abs(at - want); best = o; }
+    }
+    return best;
+  }
   // Greenhouse's education section, the only place its date boxes are a school's dates (see the rules).
   const EDU_SECTION = '[class*="education"]';
 
@@ -157,7 +184,7 @@
     { key: 'edu.startYear', re: /^start (date )?year$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'start', part: datePart },
     { key: 'edu.endMonth', re: /^end (date )?month$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'end', part: datePart },
     { key: 'edu.endYear', re: /^end (date )?year$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'end', part: datePart },
-    { re: /\bgraduation (date|year|month|term|semester)\b|\byear of graduation\b|\bgrad(uation)? (year|date)\b|\bexpected (grad|graduation)\b|\bwhen (do|will) you graduate\b|\bgraduating (year|class)\b|\bclass of\b/, max: 70, kinds: ['text', 'select'], value: (p, label) => gradValue(p.expectedGraduation || edu0(p).end, label) },
+    { re: /\bgraduation (date|year|month|term|semester)\b|\byear of graduation\b|\bgrad(uation)? (year|date)\b|\bexpected (grad|graduation)\b|\bwhen (do|will) you graduate\b|\bgraduating (year|class)\b|\bclass of\b/, max: 70, kinds: ['text', 'select'], nearestDate: true, value: (p, label) => gradValue(p.expectedGraduation || edu0(p).end, label) },
 
     // Student and internship questions
     { re: /\b(class|academic|student) (standing|level|year)\b|\b(current )?year (in|of) (school|study|college|university|program)\b|\bclassification\b|\bcurrent (school |academic )?year\b|\bschool year\b/, max: 80, kinds: YESNO_KINDS, value: (p) => p.classStanding },
@@ -387,7 +414,11 @@
         if (s > score) { score = s; best = o; }
       }
     }
-    return score >= 0.6 ? best : null;
+    if (score >= 0.6) return best;
+    // No option matches: the graduation rule takes the closest date offered (see nearestDate), marked so the
+    // report can flag it.
+    const near = res.rule && res.rule.nearestDate ? nearestDate(opts, res.value) : null;
+    return near ? { ...near, nearest: true } : null;
   }
 
   function resolve(p, label, hints, el, kind, counters) {
@@ -616,6 +647,7 @@
       const pick = pickOption([...el.options].map((o) => ({ text: o.text, val: o.value })), res);
       if (!pick) return false;
       setValue(el, pick.val);
+      res.nearest = !!pick.nearest; // the report flags it
       return true;
     }
     if (kind === 'textarea') {
@@ -685,7 +717,9 @@
 
   // Every field gets one of these calls: the outline on the page, the count in the popup, and a line in
   // the report Claude reads (so it can write application-record.md without reading the page back).
-  //   stats.fields:    [{ label, value }]                       filled by AutoInternship just now
+  //   stats.fields:    [{ label, value, profile? }]             filled by AutoInternship just now; profile is
+  //                                                             set when the closest option stood in for the
+  //                                                             profile's date (see nearestDate)
   //   stats.prefilled: [{ label, value, profile? }]             already had a value (you, an earlier fill, or
   //                                                             the site itself, like Workday's resume parsing);
   //                                                             never changed, no outline
@@ -703,10 +737,12 @@
     stats.prefilled.push(item);
   }
 
-  function noteFilled(box, stats, label, value) {
+  function noteFilled(box, stats, label, value, profile) {
     mark(box, 'filled');
     stats.filled++;
-    stats.fields.push({ label: tidy(label), value: String(value ?? '').slice(0, 500) });
+    const item = { label: tidy(label), value: String(value ?? '').slice(0, 500) };
+    if (profile) item.profile = String(profile).slice(0, 500);
+    stats.fields.push(item);
   }
 
   function noteLeft(box, stats, label, kind, extra = {}) {
@@ -859,6 +895,7 @@
     }
 
     if (!pick) { closeDropdown(d); return { options: options ? optionTexts(options) : [] }; }
+    d.nearest = !!pick.nearest; // the report flags it
     press(pick.el);
     await wait(150);
     // Check it took: the box should now show the chosen option rather than its placeholder. Some show only
@@ -1128,7 +1165,7 @@
         continue;
       }
       if (res && apply(el, kind, res)) {
-        noteFilled(el, stats, raw, kind === 'select' ? el.options[el.selectedIndex].text : el.value);
+        noteFilled(el, stats, raw, kind === 'select' ? el.options[el.selectedIndex].text : el.value, res.nearest ? res.value : null);
       } else {
         const options = kind === 'select' ? optionTexts([...el.options].map((o) => ({ text: o.text, val: o.value }))) : null;
         noteLeft(el, stats, raw, kind === 'select' ? 'dropdown' : kind, { options, required: isRequired(el, raw) });
@@ -1144,7 +1181,7 @@
       if (!d.res) { noteLeft(d.box, stats, d.raw, 'custom dropdown', { required }); continue; }
       let r;
       try { r = await fillDropdown(d); } catch (_) { r = { options: [] }; }
-      if (r.text) noteFilled(d.box, stats, d.raw, r.text);
+      if (r.text) noteFilled(d.box, stats, d.raw, r.text, d.nearest ? d.res.value : null);
       else noteLeft(d.box, stats, d.raw, 'custom dropdown', { options: r.options, required });
     }
     return stats;

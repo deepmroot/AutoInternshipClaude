@@ -139,6 +139,8 @@
   // the application record. Long labels, values and choice lists are cut with "…" (full values are in
   // the profile). Name boxes the site filled differently from the profile get their own "Check" lines
   // up top, because a wrong name is easy to miss in the compact line; on most pages there are none.
+  // So does a graduation date the form didn't offer, where the closest one was picked instead: the record
+  // should say what the form says and what the real date is.
   const KIND = { textarea: 'text box', 'custom dropdown': 'dropdown', radio: 'choice' };
   const cut = (s, n) => { s = String(s ?? ''); return s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s; };
   const choices = (opts) => opts.slice(0, 8).map((o) => cut(o, 30)).join(' | ') + (opts.length > 8 ? ` | +${opts.length - 8} more` : '');
@@ -151,6 +153,10 @@
     const same = r.prefilled.filter((f) => !f.profile);
     if (differ.length) {
       lines.push('', 'Check: the site filled these differently from the profile:', ...differ.map((f) => `- ${pair(f)} (profile: ${cut(f.profile, 60)})`));
+    }
+    const nearest = r.fields.filter((f) => f.profile);
+    if (nearest.length) {
+      lines.push('', "Check: the profile's date isn't offered, so the closest one was picked:", ...nearest.map((f) => `- ${pair(f)} (profile: ${cut(f.profile, 60)})`));
     }
     if (r.todo.length) {
       lines.push('', 'Left for you or Claude (* = required):', ...r.todo.map((t) =>
