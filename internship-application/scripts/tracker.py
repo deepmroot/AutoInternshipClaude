@@ -15,18 +15,22 @@ Keys: id, date_added, company, role, term, location, deadline, status, status_up
 - The file is created with headers, a status dropdown, colors and filters if it doesn't exist.
   An older tracker.csv beside it is imported once and then moved into _old/ (never deleted).
 - Nothing is ever deleted. Prints one JSON object.
+- Safe to run several at once (batch runs fill applications in parallel): each call waits its turn.
 
 Exit codes: 0 ok, 1 bad input or not found, 4 the file is open in another program (close Excel and retry),
-            5 openpyxl is missing (pip install openpyxl).
+            5 openpyxl is missing (pip install openpyxl), 6 another tracker call held the file too long (retry).
 """
 import argparse
 import csv
 import datetime as dt
+import hashlib
 import json
 import os
 import re
 import shutil
 import sys
+import tempfile
+import time
 
 COLUMNS = [
     ('id', 'ID', 8), ('date_added', 'Date added', 12), ('company', 'Company', 22), ('role', 'Role', 34),
@@ -179,6 +183,45 @@ def open_book(path):
     return wb, ws, notes
 
 
+LOCK_WAIT = 60  # seconds; a call takes a second or two, so this only runs out if something is stuck
+_lock_fd = None  # kept open for the life of the process: closing it would release the lock
+
+
+def lock_tracker(path):
+    """Wait until no other tracker.py call is using this tracker, then hold it until this process exits.
+
+    Batch runs log applications from several subagents at once, and the user may run more than one
+    Claude session. Every call loads the whole workbook and saves the whole workbook, so two at once
+    lose rows (the later save drops the other's row) and a read during a save fails on a half-written
+    file. Tested: 8 adds at once kept 3 or 4 rows. Reads take the lock too, for the second reason.
+
+    The lock file sits in the system temp folder, not beside tracker.xlsx, so nothing appears in the
+    user's folder and nothing there ever needs deleting. It's an OS lock rather than "the file exists",
+    so the OS releases it when the process ends, even after a crash, and a stale lock can't block later calls.
+    """
+    global _lock_fd
+    key = hashlib.sha1(os.path.normcase(os.path.realpath(path)).encode('utf-8')).hexdigest()[:16]
+    lock_path = os.path.join(tempfile.gettempdir(), f'internship-tracker-{key}.lock')
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o666)
+    deadline = time.monotonic() + LOCK_WAIT
+    while True:
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                os.lseek(fd, 0, os.SEEK_SET)  # msvcrt locks bytes from the current position
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _lock_fd = fd
+            return
+        except OSError:
+            if time.monotonic() > deadline:
+                out({'ok': False, 'code': 'BUSY', 'error': f'Another tracker.py call has been using {os.path.basename(path)} '
+                     f'for over {LOCK_WAIT} seconds. Run this again; if it keeps happening, look for a stuck python process.'}, 6)
+            time.sleep(0.1)
+
+
 def save(wb, path):
     try:
         wb.save(path)
@@ -225,6 +268,7 @@ def main():
 
     path = os.path.abspath(a.file)
     base_dir = os.path.dirname(path)
+    lock_tracker(path)  # before reading, so this call sees the rows every earlier call saved
     wb, ws, notes = open_book(path)
     existing = [read_links(ws, r) for r in rows(ws)]
     today = dt.date.today().isoformat()
