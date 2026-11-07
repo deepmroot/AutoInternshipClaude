@@ -157,6 +157,6 @@ End with: role, company and deadline, where the files are, what you filled, what
 
 ## Batch runs
 
-When the user says to work through jobs.txt (or gives several links), read `references/batch.md` first. It gives each posting its own subagent, so this conversation doesn't re-read every resume and every form page on every call, which is most of what a batch costs.
+When the user says to work through jobs.txt (or gives several links), read `references/batch.md` first. It gives each posting its own subagent, so this conversation doesn't re-read every resume and every form page on every call, which is most of what a batch costs, and several forms can fill at the same time.
 
-Start by fetching the whole queue in one call: `python scripts/fetch_posting.py --jobs "<folder>/jobs.txt" --out-dir "<scratch>/postings" --tracker "<folder>/tracker.xlsx"` (or pass the links instead of `--jobs`). The fetch result has each posting's deadline and posted date for the order. The rest is in batch.md: tailoring in subagents, one combined checkpoint, filling one application at a time, one hand-off for the whole batch, Submit (in Submit mode) done by you, and one report.
+Start by fetching the whole queue in one call: `python scripts/fetch_posting.py --jobs "<folder>/jobs.txt" --out-dir "<scratch>/postings" --tracker "<folder>/tracker.xlsx"` (or pass the links instead of `--jobs`). The fetch result has each posting's deadline and posted date for the order. The rest is in batch.md: tailoring in subagents, one combined checkpoint, filling up to three applications at once, one hand-off for the whole batch, Submit (in Submit mode) done by you, and one report.
