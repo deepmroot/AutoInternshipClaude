@@ -30,8 +30,10 @@ It submits only when you ask it to, and never uses LinkedIn, never types passwor
 3. Open the Claude desktop app, go to **Cowork** and choose your job-search folder ([help](https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork)).
 4. Ask things like "Find data internships in CA", "Work through jobs.txt", "I submitted Northwind" or "Help me prep for my interview Tuesday".
 
+In a batch, Claude tailors all the resumes at once and fills up to three forms at a time.
+
 Claude adds `Applications/` (one folder per application) and `tracker.xlsx` to your folder.
 
 ## Using Claude Code instead
 
-Copy both skill folders into `~/.claude/skills/` and install Python 3 with `pip install openpyxl pypdf`. LaTeX (to build resumes locally instead of in Overleaf) and Poppler (for better PDF checks) are optional.
+The skills you uploaded to the Claude app already work in its **Code** tab. For the command line, copy both skill folders into `~/.claude/skills/`. Then install Python 3 with `pip install openpyxl pypdf`, and [Tectonic](https://tectonic-typesetting.github.io/) so Claude can build Overleaf resumes itself. Tectonic is one file: put it on your PATH and restart Claude. Without it, you compile resumes in Overleaf. Poppler (better PDF checks) is optional.
