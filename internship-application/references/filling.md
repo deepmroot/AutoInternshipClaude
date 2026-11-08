@@ -30,9 +30,13 @@ Open the form. Accept "Autofill from resume" if offered (Workday), then check th
 
 - Press the Fill button and read its report in one browser batch: click **Fill with AutoInternship**, wait about 10 seconds, then `get_page_text`. The report is at the top of the form's text, starting "AutoInternship report:". If it says it's still filling, wait 5 seconds and read again. (`read_page` on the panel shows only its name.)
 - For a form embedded in a frame, open the frame's own address in the tab first (for Greenhouse, the `job-boards.greenhouse.io/embed/job_app?...` link).
-- Find fields with `read_page` (interactive filter) or `find`, not screenshots. Set values with `form_input` instead of clicking and typing.
-- Custom dropdowns: for one you can type into, click it, type the option's text and press Enter, in one batch. For a list button (Workday's "Select One"), click it and `find` the option in one batch, then click the option's reference. No screenshots to see options or check picks.
-- One screenshot per page or step, after filling and before Save and Continue, to check nothing is red or empty. Another only when something didn't take.
+- Find fields with `read_page` (interactive filter) or `find`, not screenshots. Set values with `form_input` instead of clicking and typing. Click by reference when the page gives one, not by screen position.
+- Send a group of browser actions (clicks, typing, waits, `find`, `get_page_text`) as one `browser_batch`, never as several browser calls at once. Fill several fields per batch, so a page takes as few batches as possible.
+- Custom dropdowns: for one you can type into, click it, type the option's text and press Enter, in one batch.
+- Workday "Select One" list buttons the report left: click the button, type the first words of the option as the form words it ("Yes", "No", "I am not"), and press Enter. Do every list on the step this way in one batch, then check them all with one `find`. For one that didn't take, click it and `find` the option in one batch, then click the option's reference.
+- Workday search lists (a Search box over "0 items selected"; the report calls them "search list"): click the box, type the value, press Enter once, wait 2 seconds and `find` the option, in one batch, then click the option's reference. Never press Enter a second time. When the list shows categories first (How Did You Hear: "Job Board", "Website"), click the category and pick inside it. Check with `find` that the list shows "1 item selected".
+- No screenshots to see options or check picks.
+- Screenshots: one per page or step, on its own after filling and before Save and Continue, to check nothing is red or empty, and one more only when something didn't take. Never add a screenshot to the end of a batch of actions. Check a click, a pick or typed text with `find` or the field's value in `read_page`, never a screenshot.
 - Don't reread the posting on the application page; it's in job-posting.md.
 - After Save and Continue, wait for the next step's heading (a short `find`) before pressing the Fill button again.
 
@@ -47,7 +51,7 @@ Open the form. Accept "Autofill from resume" if offered (Workday), then check th
    Text ending in "…" was cut short; take the full value from profile.json or the page.
 3. Skim Filled and Already filled against the profile and resume. Fix only what's clearly wrong, and mention it.
 4. Work through the Left list only, with the rules below. The resume upload is always on it.
-5. On multi-step forms (Workday), finish the step, click **Save and Continue** (never Submit), wait for the next step, and press the button again. Repeat until the review page.
+5. On multi-step forms (Workday), press the button first on every step, Application Questions and Voluntary Disclosures included, then finish the step by hand, click **Save and Continue** (never Submit), and wait for the next step. Repeat until the review page.
 
 **Without it** (no tab, the built-in browser, or the panel says it couldn't fill), fill the whole form from the profile and the master resume.
 
@@ -61,6 +65,7 @@ Open the form. Accept "Autofill from resume" if offered (Workday), then check th
 - **Student fields**: school, major and minor, GPA exactly as written (leave it if the form wants a different scale), expected graduation, class standing, coursework, enrollment, returning to school, term, available dates.
 - **Sponsorship**: only the user's answers from the profile, at every class year; never work them out (visa rules are nuanced, and a wrong answer can cost an offer later). A question about this internship only ("Do you need sponsorship for this role?") uses `needsSponsorshipForInternship` if set; one that includes the future ("now or in the future") uses `needsSponsorship`. If the profile doesn't cover the question, leave it for the user.
 - **Class year**: always the user's real class standing and graduation date. Forms may call a freshman "first-year" or "1st year". Answer "do you meet the class-year requirement" truthfully. If a graduation date or year list doesn't offer the user's, pick the closest: the latest when all are earlier, the earliest when all are later, and record it as "2029 (closest offered; graduating Jun 2030)". If a class-standing list has no true option (only Sophomore, Junior, Senior), leave it for the user. In written answers, don't apologize for being early in school.
+- **How did you hear about us?**: a saved answer first. Otherwise the truth: the SimplifyJobs list is a job board or online listing ("Other: SimplifyJobs" when there's a text box), the company's site is its website, and a referral only when the user said so. When no option is true, pick the closest (a job board, then Other, then the company website), or else any option. Never leave it or ask.
 - **Government ties** ("Are you, or is a close relative, a government official?"): Yes if `governmentEmployee` or `governmentRelative` is yes. If the profile doesn't say, leave it.
 - **Voluntary self-identification** (gender, pronouns, Hispanic or Latino, race, veteran status, disability, LGBTQ+, transgender, sexual orientation): only the user's saved choice, including "decline" (pick the form's decline option). If the field is empty, leave the question. Never infer these.
 - **Already-filled fields** (outlined green, or under Already filled): leave them unless clearly wrong, and mention it.

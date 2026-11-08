@@ -48,6 +48,35 @@ def run(cmd, cwd, timeout=180):
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, errors='replace', timeout=timeout)
 
 
+# Tectonic runs XeTeX, and two parts of a pdflatex preamble (the usual Overleaf one) go wrong there:
+# \input{glyphtounicode} and \pdfgentounicode=1 are pdfTeX-only, so the build stops at "Undefined control
+# sequence \pdfglyphtounicode"; and fi, fl and ff come out as ligature characters ("ﬁ") that tracking systems
+# can't match, which ats_check flags. Every tailoring run used to stop there and patch its copy's preamble by hand.
+# So Tectonic compiles a copy with those two lines guarded and those ligatures broken up. Each change stays on its
+# own line, so error line numbers still match the user's file, which is left as written: Overleaf's pdflatex
+# needs those lines.
+GLYPH_RE = re.compile(r'\\input\s*\{\s*glyphtounicode(?:\.tex)?\s*\}|\\input\s+glyphtounicode(?:\.tex)?\b')
+GENTOUNICODE_RE = re.compile(r'\\pdfgentounicode\s*=\s*1')
+NO_F_LIGATURES = (r'\ifdefined\XeTeXinterchartokenstate\XeTeXinterchartokenstate=1 \XeTeXcharclass`f=10 '
+                  r'\XeTeXcharclass`i=11 \XeTeXcharclass`l=11 \XeTeXinterchartoks 10 11={\kern0pt}'
+                  r'\XeTeXinterchartoks 10 10={\kern0pt}\fi ')
+
+
+def tectonic_source(source):
+    lines = source.split('\n')
+    for i, line in enumerate(lines):
+        if '\\ifdefined' in line:  # already guarded by hand (older tailored copies)
+            continue
+        line = GLYPH_RE.sub(lambda m: '\\ifdefined\\pdfglyphtounicode ' + m.group(0) + '\\fi ', line)
+        lines[i] = GENTOUNICODE_RE.sub(lambda m: '\\ifdefined\\pdfgentounicode ' + m.group(0) + '\\fi ', line)
+    if 'XeTeXinterchartokenstate' not in source:
+        for i, line in enumerate(lines):
+            if '\\begin{document}' in re.split(r'(?<!\\)%', line, maxsplit=1)[0]:
+                lines[i] = line.replace('\\begin{document}', NO_F_LIGATURES + '\\begin{document}', 1)
+                break
+    return '\n'.join(lines)
+
+
 def first_errors(log_text, limit=8):
     lines = log_text.splitlines()
     out = []
@@ -71,15 +100,21 @@ def lint_specials(source):
     for i in range(start, len(lines)):
         line = lines[i]
         code = re.sub(r'\\[%&$#_]', '', line)  # drop escaped ones
+        # Only the first % can be text written as "60%"; whatever follows it is a comment, so the checks below skip
+        # it. Checking comments and math too sent about ten false leads with every compile error on a clean master.
+        cut = code.find('%')
+        if cut >= 0:
+            before, after = code[:cut], code[cut + 1:cut + 2]
+            if re.search(r'\d\s?$', before) or (re.search(r'[A-Za-z]$', before) and re.match(r'[A-Za-z ]', after)):
+                found.append(f'line {i + 1}: "%" looks like text, not a comment. Write \\% (an unescaped % hides the rest of the line).')
+            code = before
         if re.search(r'\\begin\{(tabular\*?|tabularx|array|align\*?)\}', code):
             in_table += 1
         if re.search(r'\\end\{(tabular\*?|tabularx|array|align\*?)\}', code):
             in_table = max(0, in_table - 1)
-        if re.search(r'\d\s?%|[A-Za-z]%[A-Za-z ]', code):
-            found.append(f'line {i + 1}: "%" looks like text, not a comment. Write \\% (an unescaped % hides the rest of the line).')
         if '&' in code and not in_table and not code.rstrip().endswith('\\\\'):
             found.append(f'line {i + 1}: "&" outside a table. Write \\&.')
-        if re.search(r'(?<![\\$])\$(?![^$]*\$)', code) and not re.search(r'\$[|]\$', code):
+        if '$' in re.sub(r'\$[^$]*\$', '', code):  # whatever is left after inline math like $\vert$ or km$^2$
             found.append(f'line {i + 1}: lone "$". Write \\$ for a dollar sign.')
         if re.search(r'(?<![\\{])#', code):
             found.append(f'line {i + 1}: "#" in text. Write \\# (for example C\\#).')
@@ -242,7 +277,16 @@ def main():
                     r = run(cmd, cwd=src_dir)  # second pass for references
         else:
             engine = 'tectonic'
-            r = run(['tectonic', '--outdir', build, tex], cwd=src_dir)
+            adjusted = tectonic_source(source)
+            if adjusted == source:
+                r = run(['tectonic', '--outdir', build, tex], cwd=src_dir)
+            else:
+                # The copy goes in the temp build folder (never the user's), and search-path lets it still find
+                # the project's own .cls, .sty, \input files and images.
+                copy = os.path.join(build, os.path.basename(tex))
+                with open(copy, 'w', encoding='utf-8', newline='') as f:
+                    f.write(adjusted)
+                r = run(['tectonic', '-Z', f'search-path={src_dir}', '--outdir', build, copy], cwd=src_dir)
 
         pdf = os.path.join(build, name + '.pdf')
         log_path = os.path.join(build, name + '.log')
