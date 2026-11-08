@@ -68,6 +68,14 @@ Read <skill>/references/filling.md (and references/submitting.md unless the mode
 file-reading tool, not cat. Read each file once. You don't need SKILL.md.
 Mode: <Review | Fill all | Submit>. Never click Submit in any mode: in Submit mode, fill as in Fill all,
 then run "The check before Submit" from submitting.md on the review page and report the result.
+iCIMS has no review page, and every step button says Submit. It only saves the step, except on the last
+step still to do: the current step once every other one is completed (a green check on its circle;
+"(Completed Step)" in the page text), whatever its number. That step's heading counts its forms
+("Portal Specific Forms (1/3)"): click Submit on each form before the final one, then fill the final one
+(3/3) and stop without clicking Submit. With no count, treat the form on screen as the final one.
+In Review mode, stop when that last step opens.
+Don't leave the step that takes the resume until it shows the tailored PDF's file name; if you can't attach
+it there (on iCIMS, Replace Resume shows the file box), stop on that step and hand it over.
 The user <saw | didn't see (auto)> the drafted answers.
 For this application only: fill the form in the user's browser up to the review page or the first thing
 that needs the user, add each page's fields to application-record.md as you go, and log the tracker row
