@@ -29,8 +29,9 @@ Open the form. Accept "Autofill from resume" if offered (Workday), then check th
 **Keep browser work cheap:**
 
 - Press the Fill button and read its report in one browser batch: click **Fill with AutoInternship**, wait about 10 seconds, then `get_page_text`. The report is at the top of the form's text, starting "AutoInternship report:". If it says it's still filling, wait 5 seconds and read again. (`read_page` on the panel shows only its name.)
-- For a form embedded in a frame, open the frame's own address in the tab first (for Greenhouse, the `job-boards.greenhouse.io/embed/job_app?...` link).
+- For a form embedded in a frame, open the frame's own address in the tab first (for Greenhouse, the `job-boards.greenhouse.io/embed/job_app?...` link; for iCIMS, the page's link with `in_iframe=1` added). When `find` and `read_page` don't show a form's fields, on any page or step, it's in a frame: do this before anything else.
 - Find fields with `read_page` (interactive filter) or `find`, not screenshots. Set values with `form_input` instead of clicking and typing. Click by reference when the page gives one, not by screen position.
+- Never scroll by screen position. To reach a field, `scroll_to` its reference or click it by reference.
 - Send a group of browser actions (clicks, typing, waits, `find`, `get_page_text`) as one `browser_batch`, never as several browser calls at once. Fill several fields per batch, so a page takes as few batches as possible.
 - Custom dropdowns: for one you can type into, click it, type the option's text and press Enter, in one batch.
 - Workday "Select One" list buttons the report left: click the button, type the first words of the option as the form words it ("Yes", "No", "I am not"), and press Enter. Do every list on the step this way in one batch, then check them all with one `find`. For one that didn't take, click it and `find` the option in one batch, then click the option's reference.

@@ -73,7 +73,10 @@ that needs the user, add each page's fields to application-record.md as you go, 
 Fill everything you can. Before you list a question, check profile.json (every field and savedAnswers, by meaning):
 list only what nothing there, in the master resume or in the posting answers. Don't edit profile.json; put new
 answers under To save.
-- Job folder: <folder>  Application link: <url>  Resume: <PDF path>  Answers: <drafts file, or none>
+Browser work (filling.md has the rest): find fields with find or read_page and click or scroll_to them by
+reference, never by screen position, and never scroll by screen position. At most one screenshot per page,
+as a call of its own, never inside a batch.
+- Job folder: <folder>  Application link: <url; an icims.com link with in_iframe=1 added>  Resume: <PDF path>  Answers: <drafts file, or none>
 - Profile: <folder>/profile.json  Tracker: <folder>/tracker.xlsx
 - Tab: <open a new tab of your own | continue in tab <id>: the user has since <what they did>, and answered: <answers>
   | open a new tab of your own and continue from application-record.md: the tab group was lost>
