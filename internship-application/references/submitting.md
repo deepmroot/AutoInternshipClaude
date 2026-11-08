@@ -19,10 +19,6 @@ Leave the form with only the Submit button to click.
 
 For "Electronic signature: type your full legal name" and its date, type `firstName` and `lastName` from the profile (not `preferredName`) and today's date in the form's format. Record it under "Agreed for you". A name the profile doesn't have (such as the name in a native language) is a question.
 
-### "How did you hear about us?"
-
-A saved answer first. Otherwise the truth: the SimplifyJobs list is a job board or online listing ("Other: SimplifyJobs" when there's a text box), the company's site is its website, and a referral only when the user said so.
-
 ### Questions the profile doesn't answer
 
 Check profile.json first (filling.md, "Check the profile before you leave or ask anything"). Collect only what's left; never guess.
