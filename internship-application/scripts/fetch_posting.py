@@ -2,13 +2,24 @@
 """Fetch internship postings from the application sites' public job data, without opening a browser.
 
 Usage:
-  python fetch_posting.py URL [URL ...] --out-dir DIR [--tracker tracker.xlsx]
-  python fetch_posting.py --jobs jobs.txt --out-dir DIR [--limit N] [--tracker tracker.xlsx]
+  python fetch_posting.py URL [URL ...] --out-dir DIR [--tracker tracker.xlsx] [--profile profile.json]
+  python fetch_posting.py --jobs jobs.txt --out-dir DIR [--limit N] [--tracker tracker.xlsx] [--profile profile.json [--move-skips]]
 
 Supported: Greenhouse (job boards, embedded forms, and company career pages with ?gh_jid=), Ashby, Lever,
 Workday (myworkdayjobs.com and myworkdaysite.com), SmartRecruiters, Rippling and Oracle (oraclecloud.com). On
 2026-10-30 the first six hosted 68% of the open SimplifyJobs internship listings; Oracle had 5.8% on 2026-11-07.
-Anything else, or a lookup that fails, is reported so that posting can be opened in the browser as before.
+Added 2026-11-08, when a third of the queue was on other sites: iCIMS, Atlassian's own job list (its iCIMS links
+often answer 410), Amazon, TikTok and ByteDance pages, and any page with a schema.org JobPosting (Meta, Jibe,
+Eightfold, Paylocity). Anything else, or a lookup that fails, is reported so that posting can be opened in the
+browser as before. LinkedIn is never read.
+
+--profile screens each posting against the user's status and degree before anyone tailors for it: "skip" when
+it plainly rules the user out (excludes F-1 students, no CPT or OPT, permanent work authorization, citizenship,
+U.S. person status or a clearance the user can't have, a graduate-only role for an undergraduate), "check" for
+wording a person should judge, else "ok", with the sentences behind it. Sponsorship alone never skips: below
+senior year it doesn't stop an application (SKILL.md step 2). --move-skips (with --jobs) moves skipped lines
+below "# done" with the reason, so no batch picks them again. Batch 2026-11-08 spent $2.41 of $17.76 on four
+tailoring agents for postings that were then skipped.
 
 For each posting it writes "DIR/NN Company - Role.md" in the job-posting.md format: URL, deadline, location,
 pay and posted date, then the description. Where the site publishes its form (Greenhouse, Ashby) it adds the
@@ -27,6 +38,7 @@ Prints one JSON object with a short summary per posting. Exit codes: 0 all fetch
 import argparse
 import datetime as dt
 import html
+import http.client
 import json
 import os
 import re
@@ -56,7 +68,8 @@ class Blocked(Failed):
 
 # What to allow so every supported site works (see the "hint" in the output). Workday adds one host per company.
 ALLOW = ['boards.greenhouse.io', 'job-boards.greenhouse.io', 'boards-api.greenhouse.io', 'jobs.ashbyhq.com', 'api.ashbyhq.com',
-         'api.lever.co', 'api.smartrecruiters.com', 'ats.rippling.com', '*.myworkdayjobs.com', '*.myworkdaysite.com', '*.oraclecloud.com']
+         'api.lever.co', 'api.smartrecruiters.com', 'ats.rippling.com', '*.myworkdayjobs.com', '*.myworkdaysite.com', '*.oraclecloud.com',
+         '*.icims.com', 'www.atlassian.com', 'www.amazon.jobs', 'lifeattiktok.com', 'jobs.bytedance.com', 'www.metacareers.com']
 
 
 # Being a polite client is what keeps these lookups from being blocked: say what we are, never send more than
@@ -78,8 +91,14 @@ def get(url, data=None, headers=None, raw=False):
         _last_request[host] = time.monotonic()
         try:
             with urllib.request.urlopen(req, timeout=20) as r:
-                body = r.read().decode('utf-8', 'replace')
+                try:
+                    data = r.read()
+                except http.client.IncompleteRead as e:  # lifeattiktok.com sometimes closes after sending the whole page
+                    data = e.partial
+                body = data.decode('utf-8', 'replace')
                 return (r.geturl(), body) if raw else json.loads(body)
+        except http.client.HTTPException as e:
+            raise Failed(f"the site's answer broke off ({type(e).__name__}). Open it in the browser.")
         except urllib.error.HTTPError as e:
             if e.code in (429, 503) and attempt == 1:
                 after = e.headers.get('Retry-After', '')
@@ -388,6 +407,165 @@ def rippling(p):
             'questions': [], 'self_id': [], 'consent': [], 'form_note': ''}
 
 
+def page(url):
+    final, body = get(url, raw=True, headers={'Accept': 'text/html'})
+    return final, body
+
+
+def json_ld_posting(body):
+    """The schema.org JobPosting that many career sites put in their pages for search engines (Meta, iCIMS, Jibe,
+    Eightfold, Paylocity on 2026-11-08), or None."""
+    for m in re.finditer(r'(?is)<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', body):
+        raw = m.group(1).strip()
+        try:
+            d = json.loads(raw)
+        except json.JSONDecodeError:
+            try:
+                d = json.loads(html.unescape(raw))
+            except json.JSONDecodeError:
+                continue
+        stack = [d]
+        while stack:
+            x = stack.pop()
+            if isinstance(x, list):
+                stack.extend(x)
+            elif isinstance(x, dict):
+                kind = x.get('@type')
+                if kind == 'JobPosting' or (isinstance(kind, list) and 'JobPosting' in kind):
+                    return x
+                if x.get('@graph'):
+                    stack.append(x['@graph'])
+    return None
+
+
+def ld_text(v):
+    if isinstance(v, str):
+        return v
+    if isinstance(v, list):
+        return '\n'.join(ld_text(x) for x in v)
+    if isinstance(v, dict):
+        return ld_text(v.get('description') or v.get('name') or '')
+    return ''
+
+
+def ld_place(loc):
+    if isinstance(loc, str):
+        return loc
+    a = ((loc or {}).get('address') or {}) if isinstance(loc, dict) else {}
+    if isinstance(a, str):
+        return a
+    country = a.get('addressCountry')
+    country = country.get('name') if isinstance(country, dict) else country
+    return ', '.join(str(x) for x in (a.get('addressLocality'), a.get('addressRegion'), country) if x)
+
+
+def from_json_ld(j, url):
+    org = j.get('hiringOrganization')
+    company = re.sub(CORP_SUFFIX, '', html.unescape(str((org.get('name') if isinstance(org, dict) else org) or '')).strip(), flags=re.I).strip(' ,')
+    locs = j.get('jobLocation') or []
+    places = [ld_place(l) for l in (locs if isinstance(locs, list) else [locs])]
+    if 'TELECOMMUTE' in str(j.get('jobLocationType', '')).upper():
+        places.append('Remote')
+    pay = ''
+    s = j.get('baseSalary') or {}
+    v = s.get('value') if isinstance(s, dict) else None
+    if isinstance(v, dict) and (v.get('minValue') or v.get('value')):
+        lo = v.get('minValue') or v.get('value')
+        hi = v.get('maxValue')
+        try:
+            pay = money(lo, s.get('currency', 'USD')) + ('' if hi in (None, lo) else ' to ' + money(hi, s.get('currency', 'USD')))
+            pay += f" per {str(v['unitText']).lower()}" if v.get('unitText') else ''
+        except (TypeError, ValueError):
+            pay = ''
+    parts = [html.unescape(md(ld_text(j.get('description'))))]  # some pages escape their job data twice ("&#xa;")
+    for key, title in (('responsibilities', 'Responsibilities'), ('qualifications', 'Qualifications'),
+                       ('educationRequirements', 'Education'), ('experienceRequirements', 'Experience')):
+        text = html.unescape(md(ld_text(j.get(key))))
+        if text and text not in parts[0]:
+            parts.append(f'### {title}\n{text}')
+    host = urllib.parse.urlparse(url).netloc.lower().removeprefix('www.')
+    return {'company': company or host.split('.')[0].title(), 'company_from_url': not company, 'role': html.unescape(str(j.get('title') or '')),
+            'location': '; '.join(dict.fromkeys(p for p in places if p)), 'deadline': f"{day(j['validThrough'])} (when the posting closes)" if j.get('validThrough') else '',
+            'pay': pay, 'posted': day(j.get('datePosted')), 'description': '\n\n'.join(x for x in parts if x),
+            'questions': [], 'self_id': [], 'consent': [], 'form_note': ''}
+
+
+def other(p):
+    """A site without a reader of its own: its page's JobPosting data, if it has one."""
+    final, body = page(p['url'])
+    j = json_ld_posting(body)
+    if not j:
+        raise Failed('not a site with public job data here. Open it in the browser.')
+    return from_json_ld(j, final)
+
+
+_atlassian = []  # Atlassian's whole job list, downloaded once per run
+
+
+def atlassian(p):
+    # Atlassian's iCIMS links often answer 410 Gone, while its own careers site lists the same job by the same id.
+    if not _atlassian:
+        _atlassian.extend(get('https://www.atlassian.com/endpoint/careers/listings'))
+    j = next((x for x in _atlassian if str(x.get('id')) == p['id']), None)
+    if not j:
+        raise Failed("not on Atlassian's job list: the posting may have closed. Open it in the browser to check.")
+    places = [', '.join(re.split(r'\s+-\s+', l.strip())[:2]) for l in j.get('locations') or []]
+    parts = [md(j.get('overview'))] + [f'### {t}\n{md(j.get(k))}' for k, t in (('responsibilities', 'Responsibilities'), ('qualifications', 'Qualifications')) if j.get(k)]
+    return {'company': 'Atlassian', 'role': j.get('title'), 'location': '; '.join(places), 'deadline': '', 'pay': '',
+            'posted': day((j.get('portalJobPost') or {}).get('updatedDate')), 'description': '\n\n'.join(x for x in parts if x),
+            'questions': [], 'self_id': [], 'consent': [], 'form_note': ''}
+
+
+def icims(p):
+    # The job page with in_iframe=1 is the posting without the company's site around it, with its JobPosting data.
+    final, body = page(f"https://{p['host']}/jobs/{p['id']}/job?in_iframe=1")
+    j = json_ld_posting(body)
+    if not j:
+        raise Failed("couldn't read this iCIMS page's job data (the posting may have closed). Open it in the browser.")
+    return from_json_ld(j, final)
+
+
+def section_text(chunk):
+    return md(re.sub(r'(?i)<br\s*/?>', '\n', chunk))
+
+
+def amazon(p):
+    _, body = page(f"https://www.amazon.jobs/en/jobs/{p['id']}")
+    title = re.search(r'(?is)<h1[^>]*>(.*?)</h1>', body)
+    if not title:
+        raise Failed("couldn't read this Amazon page. Open it in the browser.")
+    heads = list(re.finditer(r'(?is)<h2[^>]*>(.*?)</h2>', body))
+    parts = []
+    for i, h in enumerate(heads):
+        name = html.unescape(re.sub(r'<[^>]+>', '', h.group(1))).strip()
+        if name.lower() in ('job details', 'share this job'):
+            continue
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(body)
+        parts.append(f'### {name}\n{section_text(body[h.end():end])}')
+    loc = re.search(r'(?is)location-icon.*?<ul class="association-content">(.*?)</ul>', body)
+    places = [html.unescape(re.sub(r'<[^>]+>', '', x)).strip() for x in re.findall(r'(?is)<li>(.*?)</li>', loc.group(1))] if loc else []
+    return {'company': 'Amazon', 'role': html.unescape(re.sub(r'<[^>]+>', '', title.group(1))).strip(), 'location': '; '.join(places),
+            'deadline': '', 'pay': '', 'posted': '', 'description': '\n\n'.join(parts),
+            'questions': [], 'self_id': [], 'consent': [], 'form_note': ''}
+
+
+def bytedance(p):
+    """TikTok's and ByteDance's career sites (one system): the page is rendered with its sections."""
+    _, body = page(p['url'])
+    title = re.search(r'(?is)<title>(.*?)</title>', body)
+    sections = re.findall(r'(?is)<p class="text-\[3\dpx\][^"]*"[^>]*>(.*?)</p>\s*<p[^>]*>(.*?)</p>', body)
+    if not title or not sections:
+        raise Failed("couldn't read this careers page. Open it in the browser.")
+    text = re.sub(r'(\s*\|\s*)+', ' | ', html.unescape(re.sub(r'<[^>]+>', ' | ', re.sub(r'(?is)<(script|style)\b.*?</\1>', '', body))))
+    loc = re.search(r'\|\s*Location\s*\|\s*:\s*\|\s*([^|]+)', text)
+    pay = re.search(r'(The (hourly|annual|monthly)[^|]{0,80}?range for this position[^|]*?\$[\d,.]+\s*-\s*\$[\d,.]+)', text)
+    parts = [f"### {html.unescape(re.sub(r'<[^>]+>', '', h)).strip()}\n{section_text(c)}" for h, c in sections
+             if 'job information' not in h.lower()]
+    return {'company': p['company'], 'role': html.unescape(title.group(1)).strip(), 'location': loc.group(1).strip() if loc else '',
+            'deadline': '', 'pay': pay.group(1) if pay else '', 'posted': '', 'description': '\n\n'.join(parts),
+            'questions': [], 'self_id': [], 'consent': [], 'form_note': ''}
+
+
 def parse(url):
     """Which site a link is on, and the ids its public data needs. (None, None) when it isn't supported."""
     u = urllib.parse.urlparse(url.strip())
@@ -427,20 +605,272 @@ def parse(url):
     if host.endswith('.oraclecloud.com'):
         m = re.match(r'/hcmUI/CandidateExperience/([^/]+)/sites/([^/]+)/(?:job|requisitions/preview)/(\d+)', path)
         return 'oracle', m and {'host': host, 'lang': m.group(1), 'site': m.group(2), 'id': m.group(3)}
-    return None, None
+    bare = host.removeprefix('www.')
+    if bare == 'atlassian.com' or (host.endswith('.icims.com') and (host in ATLASSIAN_ICIMS or 'atlassian' in host)):
+        m = re.search(r'/(?:jobs|careers/details)/(\d+)', path)
+        return 'atlassian', m and {'id': m.group(1)}
+    if host.endswith('.icims.com'):
+        m = re.match(r'/jobs/(\d+)', path)
+        return 'icims', m and {'host': host, 'id': m.group(1)}
+    if bare == 'amazon.jobs':
+        m = re.match(r'/(?:[a-z]{2}(?:-[a-z]{2})?/)?jobs/(\d+)', path)
+        return 'amazon', m and {'id': m.group(1)}
+    if bare in ('lifeattiktok.com', 'careers.tiktok.com', 'jobs.bytedance.com', 'joinbytedance.com'):
+        return 'bytedance', {'url': url.strip(), 'company': 'ByteDance' if 'bytedance' in bare else 'TikTok'}
+    if 'linkedin.com' in host:
+        return None, None  # never read LinkedIn (SKILL.md)
+    return 'other', {'url': url.strip()}
 
+
+# Atlassian's iCIMS sites, from the portal links in its own job list (2026-11-08)
+ATLASSIAN_ICIMS = {'careers-americas.icims.com', 'campus-americas.icims.com'}
 
 SITES = {'greenhouse': greenhouse, 'ashby': ashby, 'lever': lever, 'workday': workday,
-         'smartrecruiters': smartrecruiters, 'rippling': rippling, 'oracle': oracle}
+         'smartrecruiters': smartrecruiters, 'rippling': rippling, 'oracle': oracle, 'atlassian': atlassian,
+         'icims': icims, 'amazon': amazon, 'bytedance': bytedance, 'other': other}
+
+
+# ---- eligibility screen: the posting's own words against the profile, before anyone tailors for it ----
+
+# The patterns below run on a sentence in lower case with the dots of abbreviations dropped ("U.S." is "us",
+# "Ph.D." is "ph.d", "B.S." is "bs"), so a window like [^.]{0,40} isn't cut short by "U.S.".
+REQUIRE = re.compile(r'\b(must|required?|requires|requirement|mandatory|only|need(s|ed)? to|necessary|condition of|eligible|eligibility)\b')
+NOT_REQUIRED = re.compile(r'\b(not|no)\b (be )?(required|necessary|needed|a requirement)\b')
+# EEO statements list citizenship among the traits an employer ignores; those sentences rule no one out.
+EEO = re.compile(r'\b(without regard|regardless of|discriminat\w*|equal (employment )?opportunity|race|religion|protected (veteran|class|status)|affirmative action|'
+                 r'citizenship and immigration services|e-verify)\b')
+# "Must be a U.S. citizen, permanent resident, or authorized to work in the U.S." lets in anyone allowed to work.
+OR_AUTHORIZED = re.compile(r'\bor\b[^.]{0,40}\b(authori[sz]ed|eligible) to work\b|\bor (have|possess|hold) (valid |current )?(us )?work authori[sz]ation\b'
+                           r'|\btemporary residents?\b')  # "hires U.S. citizens, permanent residents, refugees, and temporary residents"
+CITIZEN = re.compile(r'\b(us|united states|american) citizen(ship|s)?\b')
+PERMANENT = re.compile(r'\b(permanent residen\w*|green card|lawful permanent|lpr)\b')
+US_PERSON = re.compile(r'\bus persons?\b|\bitar\b')
+CLEARANCE = re.compile(r'\b(security|secret|top secret|ts\s?/\s?sci|dod|government|federal|public trust)\b[^.]{0,30}\bclearance\b'
+                       r'|\bclearance\b[^.]{0,30}\b(polygraph|ts\s?/\s?sci|secret|top secret|public trust)\b')
+NO_CLEARANCE = re.compile(r'\bclearance\b[^.]{0,40}:\s*none\b|\bnone required\b')
+MAYBE = re.compile(r'\b(prefer\w*|a plus|desir\w*|nice to have|bonus|ideal\w*)\b')
+VISA = re.compile(r'\b(f-?1|j-?1)\b')
+VISA_BAR = [
+    re.compile(r'\b(not|in)\s?eligible\b[^.]{0,60}\b(f-?1|j-?1|student visas?|international students?|visa holders?)\b'),
+    re.compile(r'\b(f-?1|j-?1)\b[^.]{0,160}\b(not eligible|ineligible|are not|cannot|will not|won\'t|not be considered)\b'),
+    re.compile(r'\bnot (open|available)\b[^.]{0,40}\b(f-?1|j-?1|student visas?|international students?|visa holders?)\b'),
+    re.compile(r'\b(not|cannot|unable to|won\'t|will not)\b[^.]{0,20}\b(hire|interview|employ|consider|accept)\b[^.]{0,80}\b(f-?1|j-?1)\b'),
+]
+# "F-1 visa holders with OPT who will require H-1B status ... will not be considered" is about OPT, after graduation.
+OPT_HOLDERS = re.compile(r'\b(with|on|using)\s+(optional practical training|opt)\b')
+# "...without sponsorship for employment visa status (e.g., H1B, TN, CPT, OPT)" counts CPT as sponsorship it won't support.
+NO_SUPPORT = re.compile(r'\b(without|not require|no|not|unable to|cannot|won\'t|will not|does not)\b[^.]{0,80}\b(sponsor\w*|visa support|immigration support)\b')
+# "This includes, but is not limited to: F1-OPT, F1-CPT, H-1B" continues the sentence before it.
+FUTURE_WORDS = re.compile(r'\b(future|would need|will need|later|within (a|the next) (few )?years?|eventually|continued)\b')
+INCLUDES = re.compile(r'^(this|these|that|which) (includes?|applies to)\b|^(includes?|including)\b|\bbut (is )?not limited to\b')
+LABELLED = re.compile(r'^(work authori[sz]ation|citizenship|security clearance|clearance)[^:]{0,20}:')
+# "Must be a U.S. person ... or otherwise eligible for an export license", "an offer may depend on an export license"
+LICENSED = re.compile(r'\bor\b[^.]{0,60}\blicen[cs]e|\b(subject to|depend\w* on|contingent (on|upon)|obtain\w*|require\w*|need\w*) (an? )?(us )?(export|government)?\s*(control )?licen[cs]e')
+EXPORT_ACCESS = re.compile(r'\baccess\b[^.]{0,80}\bexport.?control|\bexport.?controlled\b[^.]{0,40}\baccess\b')
+# These two keep the case: "OPT" and "CPT" in capitals, so "opt in" doesn't count.
+# Only CPT counts: an intern works on CPT, and OPT (STEM OPT, Form I-983) comes after graduation, like sponsorship.
+NO_TRAINING = re.compile(r'\b([Nn]ot|[Uu]nable to|[Cc]annot|[Cc]an ?not|[Ww]on\'?t|[Ww]ill not|[Dd]oes not|[Dd]o not|[Dd]oesn\'?t|[Dd]on\'?t)\b[^.]{0,50}'
+                         r'\b(support|accept|sponsor|sign|consider|provide|offer|allow|execute)\w*\b[^.]{0,160}(\bCPT\b|[Cc]urricular [Pp]ractical [Tt]raining)')
+TRAINING_NO = re.compile(r'(\bCPT\b|[Cc]urricular [Pp]ractical [Tt]raining)[^.]{0,40}\b(not (be )?(accepted|supported|eligible|available|considered)|ineligible)\b')
+# "We don't sponsor, but OPT and CPT students are welcome" is the opposite.
+TRAINING_OK = re.compile(r'\b(welcome|encouraged|eligible to apply|can apply|may apply|are accepted|is accepted|we (do )?support|will consider|consider applicants)\b'
+                         r'|\b(cpt|opt|f-?1)\b[^.]{0,40}\b(are|is) eligible\b')
+# The sentence before "This includes ... F1-CPT": "Wellmark is not considering applicants ... that require any type of
+# immigration sponsorship", "Work visa sponsorship is not available for this role."
+NO_SPONSOR_BEFORE = re.compile(r'\b(not|unable to|cannot|won\'?t|will not|does not|do not)\b[^.]{0,90}\bsponsor'
+                               r'|\bsponsor\w*[^.]{0,30}\bnot (be )?(available|offered|provided|possible|supported)\b|without sponsorship|not eligible')
+# "Other than verification of employment" is the one document CPT needs, so whether it rules the user out is a judgment.
+TRAINING_MAYBE = re.compile(r'\bother than\b|\bexcept\b')
+# "Requiring future sponsorship (for example, following F-1 OPT/CPT) are not eligible" is about sponsorship.
+FUTURE_SPONSOR = re.compile(r'\bsponsor\w*[^.]{0,80}\b(future|continued|following|extend\w*)\b|\b(future|continued)\b[^.]{0,40}\bsponsor')
+SHORT_HEADING = re.compile(r'^[^.]{0,60}:$|^\S+(\s+\S+){0,2}$')
+PERMANENT_AUTH = re.compile(r'\bpermanent\b[^.]{0,30}\b(work|employment)\s+authori[sz]ation\b|\bauthori[sz]ed to work permanently\b|\bpermanently authori[sz]ed\b')
+PREFERRED_HEAD = re.compile(r'\b(prefer\w*|nice to have|bonus|pluses|desired|ideal\w*)\b', re.I)
+HEADING_WORDS = re.compile(r'\b(qualifications?|requirements?|skills|about|what you|who you|you will|you\'ll|we\'re looking|we are looking|'
+                           r'responsibilit\w*|benefits|nice to have|bonus|preferred|minimum|basic|required|desired|eligibility|education)\b', re.I)
+UNRESTRICTED = re.compile(r'\b(unrestricted|without (any )?restrictions?)\b[^.]{0,40}\b(right to work|work authori[sz]ation)\b')
+NO_SPONSOR = re.compile(r'\b(not|unable to|cannot|won\'?t|will not|does not|do not)\b[^.]{0,40}\bsponsor')
+GRAD_ONLY = re.compile(r'\b(ph\.?\s?d|doctoral|doctorate|master[\'’]?s|mba|graduate (degree|program|student)s?)\b')
+UNDERGRAD = re.compile(r'\b(bachelor\w*|undergrad\w*|bs|ba|bsc|beng|bachelors|baccalaureate|freshm[ae]n|sophomores?|juniors?|seniors?)\b'
+                       r'|\b(college|university)\b[^.]{0,20}\bor (an? )?(master|ph\.?d|graduate|doctoral)')
+ENROLLED = re.compile(r'\b(enrolled|pursuing|in the process of obtaining|working towards?|candidates?|students?)\b')
+# Kept whole when splitting sentences: "U.S.", "e.g.", "Ph.D.", "Inc."
+ABBREV = re.compile(r'(?:\b[A-Za-z]\.){2,}|\b(?:e\.g|i\.e|etc|inc|ltd|vs|incl|approx|ph\.d|no)\.', re.I)
+
+
+def undotted(s):
+    return re.sub(r'\b([A-Za-z])\.', r'\1', s)
+
+
+def user_status(prof):
+    """What the screen needs from profile.json: citizen (True/False/None), permanent resident, visa, degree, below senior."""
+    sys.path.insert(0, HERE)
+    from find_internships import below_senior, degree_level  # same readings as the queue search
+    # profile.json has no citizenship field of its own (autointernship/shared.js defaults()); a visa in workAuthDetails,
+    # or needing sponsorship, means not a citizen or permanent resident, as find_internships.py reads it too.
+    cz, auth = norm(prof.get('citizenship')), norm(prof.get('workAuthDetails'))
+    visa = re.search(r'\b(f ?1|j ?1|h ?1 ?b|opt|cpt|tn|visa)\b', auth)
+    if cz:
+        citizen = cz in ('united states', 'usa', 'us', 'united states of america', 'american')
+    elif visa or prof.get('needsSponsorship') == 'yes':
+        citizen = False
+    else:
+        citizen = True if re.search(r'\bu ?s citizen', auth) else None
+    degree = prof.get('degree') or ((prof.get('education') or [{}])[0] or {}).get('degree', '')
+    term = re.search(r'(summer|fall|winter|spring)\s+(20\d{2})', str(prof.get('internshipTerm', '')), re.I)
+    return {'citizen': citizen, 'permanent': bool(re.search(r'green card|permanent resident|\blpr\b', auth)),
+            'visa': visa.group(0).upper().replace(' ', '-') if visa else '', 'degree': degree_level(degree),
+            'below_senior': below_senior(prof, term.group(0) if term else 'Summer 2027'), 'sponsor': prof.get('needsSponsorship') == 'yes'}
+
+
+REQUIRED_HEAD = re.compile(r'\b(required|requirements|minimum|basic|must have|what you need|you must|eligibility)\b', re.I)
+
+
+def sentences(text):
+    """(sentence, under a "Preferred" heading, under a "Required" heading) triples. A heading is a "###" line or a
+    short line with no full stop ("Preferred Qualifications", "Minimum Qualifications:"). Lines under a required
+    heading are requirements even without "must" ("- U.S. Citizen or Permanent Residency")."""
+    out, preferred, required = [], False, False
+    for raw in str(text or '').split('\n'):
+        line = raw.strip()
+        if not line:
+            continue
+        lead = re.match(r'^(#+\s*)?((?:minimum|basic|required|preferred|desired|additional|bonus)?\s*(?:qualifications|requirements|skills)[^:.]{0,40}:|nice to have:?|preferred:)', line, re.I)
+        heading = line.startswith('#') or (not line.startswith(('-', '*')) and len(line) <= 70 and not re.search(r'[.!?]$', line)
+                                           and HEADING_WORDS.search(line))
+        if lead or heading:
+            head = lead.group(0) if lead else line
+            preferred = bool(PREFERRED_HEAD.search(head))
+            required = not preferred and bool(REQUIRED_HEAD.search(head))
+        elif len(line) > 100 and not line.startswith(('-', '*')):
+            preferred = required = False  # a paragraph after the list ends it (Amca's ITAR paragraph under "Preferred Skills")
+        # The heading line itself isn't one of the requirements under it ("Security Clearance & Other Requirements:").
+        under = required and not ((lead and len(line) == len(lead.group(0))) or (heading and not lead))
+        line = ABBREV.sub(lambda m: m.group(0).replace('.', '\x00'), re.sub(r'^[\s#*-]+', '', line).strip())
+        out += [(s.replace('\x00', '.').strip(), preferred, under) for s in re.split(r'(?<=[.!?;])\s+', line) if s.strip()]
+    return out
+
+
+def screen(p, st):
+    """skip, check or ok, with the sentences behind it. skip only for clear cases: the posting excludes the
+    user's status, needs a citizenship the user doesn't have, or is a graduate-only role for an undergraduate."""
+    hits = []
+    not_citizen = st['citizen'] is False
+    not_pr = not_citizen and not st['permanent']
+    on_visa = bool(st['visa']) and not_pr
+    undergrad = st['degree'] in ("Bachelor's", "Associate's")
+
+    title = undotted(p['role'] or '').lower()
+    if undergrad and GRAD_ONLY.search(title) and not UNDERGRAD.search(title):
+        hits.append(('skip', 'graduate-only role', p['role']))
+
+    prev = ''
+    for s, preferred, required in sentences(html.unescape(p['description'] or '')):  # some job data is escaped twice ("&#xa;")
+        cased = undotted(s)
+        low = cased.lower()
+        last, prev = prev, low
+        if EEO.search(low):
+            continue
+        before = len(hits)
+        maybe = MAYBE.search(low)
+        needed = (REQUIRE.search(low) or required or LABELLED.search(low)) and not NOT_REQUIRED.search(low)
+        may = re.search(r'\bmay\b', low)
+        if SHORT_HEADING.search(low.strip()) and not (REQUIRE.search(low) or required):
+            continue  # a bare heading ("Security Clearance") says nothing yet; the lines under it do
+        cpt = re.search(r'\bCPT\b', cased) or 'curricular practical training' in low
+        support = NO_SUPPORT.search(low)
+        follows = INCLUDES.search(low) and (cpt or VISA.search(low)) and NO_SPONSOR_BEFORE.search(last)
+        training = (NO_TRAINING.search(cased) or TRAINING_NO.search(cased) or follows
+                    or (cpt and support and support.end() < (cased.find('CPT') if 'CPT' in cased else low.find('curricular'))))
+        visa_bar = any(r.search(low) for r in VISA_BAR) and not (OPT_HOLDERS.search(low) and not cpt)
+        perm = PERMANENT_AUTH.search(low)
+        if on_visa and not maybe and (visa_bar or training) and not TRAINING_OK.search(low):
+            # Unsure when the visa is only an example of needing sponsorship later ("requiring future sponsorship
+            # (for example, following F-1 OPT/CPT)"), not a status turned away ("temporary visas such as F-1 ... are not eligible").
+            first_visa = min([m.start() for m in (VISA.search(low), re.search(r'\bcpt\b', low)) if m] or [len(low)])
+            later = ((FUTURE_SPONSOR.search(low) and -1 < low.find('sponsor') < first_visa)
+                     or re.search(r'\b(f-?1|j-?1)( \(student\))?( visas?)?( holders?)? who (will )?(require|need)\b[^.]{0,30}\bsponsor', low)  # "F-1 (student) visa holders who require employer sponsorship in the future"
+                     or (follows and FUTURE_WORDS.search(low)))  # "This includes ... CPT ... but would need H-1B sponsorship within a few years"
+            hits.append(('check' if TRAINING_MAYBE.search(low) or later else 'skip', f"excludes {st['visa']} students", s))
+        elif (on_visa and perm and not NOT_REQUIRED.search(low) and not maybe
+              and not re.search(r'sponsor\w*[^.]{0,60}$', low[:perm.start()])):  # "...sponsorship (... or permanent work authorization)"
+            hits.append(('skip', 'needs permanent work authorization', s))
+        elif CITIZEN.search(low) and needed and not maybe and not OR_AUTHORIZED.search(low):
+            either = PERMANENT.search(low) or US_PERSON.search(low)
+            if (not_pr if either else not_citizen):
+                some = re.search(r'\b(some|certain) (positions|roles|jobs)\b', low)  # "Some positions will require U.S. citizenship"
+                hits.append(('check' if may or some else 'skip',
+                             'U.S. citizenship or permanent residence required' if either else 'U.S. citizenship required', s))
+            elif st['citizen'] is None:
+                hits.append(('check', 'citizenship', s))
+        elif not_pr and (US_PERSON.search(low) or EXPORT_ACCESS.search(low)):
+            # "May involve export-controlled information" or "an offer may depend on an export license" rules no one out;
+            # a U.S. person rule with a license as the other way in, or plain export-controlled access, is a judgment.
+            person = re.search(r'\bus persons?\b', low)
+            if may:
+                if person and needed:
+                    hits.append(('check', 'export control (U.S. person)', s))
+            elif person and needed and not LICENSED.search(low):
+                hits.append(('skip', 'U.S. person status required', s))
+            elif needed or re.search(r'\b(requires?|will have) access\b', low):
+                hits.append(('check', 'export control', s))
+        elif CLEARANCE.search(low) and not_citizen and not NOT_REQUIRED.search(low) and not NO_CLEARANCE.search(low):
+            soft = maybe or may or 'public trust' in low
+            hits.append(('check' if soft else 'skip', 'security clearance', s))
+        elif on_visa and UNRESTRICTED.search(low):
+            hits.append(('check', 'unrestricted work authorization', s))
+        elif (undergrad and ENROLLED.search(low) and GRAD_ONLY.search(low) and not UNDERGRAD.search(low) and not maybe
+              and not preferred and not may and not re.search(r'\balso\b', low) and (needed or 'currently' in low)):
+            hits.append(('check', 'degree level', s))
+        elif st['below_senior'] is False and st['sponsor'] and NO_SPONSOR.search(low):
+            hits.append(('check', 'sponsorship', s))
+        # Under a "Preferred" heading only a degree line is plainly a preference; an export-control or citizenship
+        # paragraph at the end of a posting often has no heading of its own, so it becomes a check, not a skip.
+        if preferred and len(hits) > before and hits[-1][0] == 'skip':
+            hits[-1] = ('check',) + hits[-1][1:]
+    if not hits:
+        return 'ok', []
+    verdict = 'skip' if any(v == 'skip' for v, _, _ in hits) else 'check'
+    why = []
+    for v, rule, s in sorted(hits, key=lambda h: h[0] != 'skip'):
+        line = f'{rule}: "{s[:200]}"'
+        if line not in why:
+            why.append(line)
+    return verdict, why[:3]
+
+
+def move_skips(path, skipped):
+    """Move queued lines whose posting the screen ruled out to just below '# done', with the reason in the note."""
+    lines = open(path, encoding='utf-8-sig').read().splitlines()
+    done_at = next((i for i, l in enumerate(lines) if l.strip().lower() == '# done'), len(lines))
+    keep, moved = [], []
+    for line in lines[:done_at]:
+        m = re.match(r'\s*(https?://\S+)', line)
+        if m and m.group(1) in skipped:
+            moved.append(line.rstrip() + (' | ' if '#' in line[m.end():] else '  # ') + f'skipped: {skipped[m.group(1)]}')
+        else:
+            keep.append(line)
+    if moved:
+        while keep and not keep[-1].strip():
+            keep.pop()
+        with open(path, 'w', encoding='utf-8') as f:  # rewrites jobs.txt in place; nothing is deleted
+            f.write('\n'.join(keep + ['', '# done'] + moved + lines[done_at + 1:]) + '\n')
+    return len(moved)
+
+
+SOURCE = {'other': 'the posting page', 'icims': 'the iCIMS posting page', 'amazon': 'the Amazon posting page',
+          'bytedance': 'the posting page', 'atlassian': "Atlassian's public job list"}
 
 
 def as_markdown(url, site, p):
     lines = [f"# {p['role']} — {p['company']}", f'- URL: {url}', f"- Deadline: {p['deadline'] or 'none listed'}",
              f"- Location: {p['location'] or 'not listed'}", f"- Pay: {p['pay'] or 'not listed in the job data (check the description)'}",
              f"- Posted: {p['posted'] or 'not listed'}",
-             f"- Fetched {dt.date.today().isoformat()} from {site.title()}'s public job data"
-             + (' (company name from the link: check it against the description)' if p.get('company_from_url') else ''),
-             '', '## Description', '', p['description'] or '(empty: open the posting in the browser)']
+             f"- Fetched {dt.date.today().isoformat()} from {SOURCE.get(site, site.title() + chr(39) + 's public job data')}"
+             + (' (company name from the link: check it against the description)' if p.get('company_from_url') else '')]
+    if p.get('screen_why'):
+        lines.append(f"- Eligibility screen: {p['screen']}: " + '; '.join(p['screen_why']))
+    lines += ['', '## Description', '', p['description'] or '(empty: open the posting in the browser)']
     if p['questions'] or p['self_id'] or p['consent'] or p['form_note']:
         lines += ['', '## Application questions', '']
         if p['questions'] or p['self_id'] or p['consent']:
@@ -506,7 +936,16 @@ def main():
     ap.add_argument('--limit', type=int, help='with --jobs, only the first N links')
     ap.add_argument('--out-dir', required=True, help='where the posting files go (scratch space)')
     ap.add_argument('--tracker', help='tracker.xlsx, to list rows already there for the same company')
+    ap.add_argument('--profile', help="profile.json, to screen each posting against the user's status and degree")
+    ap.add_argument('--move-skips', action='store_true', help='with --jobs and --profile: move the lines the screen skips below "# done"')
     a = ap.parse_args()
+    status = None
+    if a.profile:
+        try:
+            status = user_status(json.load(open(a.profile, encoding='utf-8-sig')))
+        except (OSError, ValueError) as e:
+            print(json.dumps({'ok': False, 'error': f"couldn't read the profile: {e}"}))
+            return 1
 
     urls = list(a.urls)
     if a.jobs:
@@ -535,12 +974,20 @@ def main():
                 raise Failed(f"couldn't read the posting's id from this {site.title()} link. Open it in the browser.")
             p = SITES[site](ids)
             p['company'], p['role'] = ' '.join(str(p['company'] or '').split()), ' '.join(str(p['role'] or '').split())
+            if site == 'other' and (not p['role'] or not p['description']):
+                raise Failed("the page's job data has no title or description. Open it in the browser.")
+            if status:
+                p['screen'], p['screen_why'] = screen(p, status)
             path = os.path.join(a.out_dir, file_name(n, p))
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(as_markdown(url, site, p))
             item.update({'ok': True, 'company': p['company'], 'role': p['role'], 'location': p['location'], 'deadline': p['deadline'],
                          'pay': p['pay'], 'posted': p['posted'], 'file': path, 'questions': len(p['questions']),
                          'written': [q['label'][:120] for q in p['questions'] if q['kind'] == 'text box']})
+            if status:
+                item['screen'] = p['screen']
+                if p['screen_why']:
+                    item['screen_why'] = p['screen_why']
             if p.get('company_from_url'):
                 item['check_company'] = True
             if rows is not None:
@@ -558,10 +1005,16 @@ def main():
         results.append(item)
 
     failed = sum(1 for r in results if not r['ok'])
-    out = {'ok': not failed, 'fetched': len(results) - failed, 'need_browser': failed, 'postings': results}
+    out = {'ok': not failed, 'fetched': len(results) - failed, 'need_browser': failed}
+    if status:
+        out['screen'] = {v: sum(1 for r in results if r.get('screen') == v) for v in ('ok', 'check', 'skip')}
+        if a.move_skips and a.jobs:
+            skipped = {r['url']: r['screen_why'][0].split(':')[0] for r in results if r.get('screen') == 'skip'}
+            out['moved_below_done'] = move_skips(a.jobs, skipped) if skipped else 0
+    out['postings'] = results
     if blocked:
         # Said once, so the user can fix it in a minute instead of every posting costing a browser read.
-        extra = sorted(h for h in blocked if h not in ALLOW and not h.endswith(('.myworkdayjobs.com', '.myworkdaysite.com', '.oraclecloud.com')))
+        extra = sorted(h for h in blocked if h not in ALLOW and not h.endswith(('.myworkdayjobs.com', '.myworkdaysite.com', '.oraclecloud.com', '.icims.com')))
         out['network_blocked'] = sorted(blocked)
         out['hint'] = ("This computer's network blocks the job sites, so these postings need the browser. To fetch them "
                        "without it, allow these domains in the Claude app's settings for code execution (network access): "
