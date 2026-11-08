@@ -1,6 +1,6 @@
 # Filling the application
 
-Read this before filling a form (SKILL.md steps 5 and 6), the first time in a session. Everything in SKILL.md still applies; this file has the browser rules and how to answer each kind of question. It was split out of SKILL.md on 2026-11-05 so each file stays well under the 30,000 characters a command shows at once: subagents reading a longer SKILL.md got it cut off.
+Read this before filling a form (SKILL.md steps 5 and 6), the first time in a session. Everything in SKILL.md still applies; this file has the browser rules, how to answer each kind of question, the record and the tracker row. Filling subagents in a batch read only this file (and submitting.md), so whatever they need belongs here. It was split out of SKILL.md on 2026-11-05 so each file stays well under the 30,000 characters a command shows at once: subagents reading a longer SKILL.md got it cut off.
 
 ## Browsers, file uploads and sign-ins
 
@@ -53,6 +53,10 @@ Open the form. If the site offers "Autofill from resume" (Workday does), accept 
 
 **Without it** (no tab, the built-in browser, or the panel says it couldn't fill), fill the whole form yourself from the profile and the master resume.
 
+- **Check the profile before you leave or ask anything.** Read every field and every `savedAnswers` entry in profile.json, and match by meaning, not exact words: "relatives employed by the company", "family member who works here" and "related to an employee" are one question, and a saved answer for one covers all of them. A field that asks the question directly wins over working something out from another field: "Are you authorized to work in the US?" is `workAuthorized`, whatever `workAuthDetails` adds. Leave or ask only what nothing in the profile, the master resume or the posting answers. The user kept being asked questions whose answers were already saved, and each one held up a form.
+- **Don't ask the user to confirm** answers that came from the profile, the resume or the posting ("Have you interned at Costco before?" is No when the resume has no Costco), and don't add "change it if you prefer" notes. Record them in application-record.md; that's where the user checks.
+- **Preference questions** (flexible shifts, travel, commuting or working on site some days a week, full-time hours over the summer): Yes, unless `availableFrom`/`availableUntil`, `workPreference` or `willingToRelocate` says otherwise. A real conflict, such as a program window that starts before `availableFrom`, is a question for the user.
+- **Full-time start date after graduation**: the first day of the month after `expectedGraduation` (Jun 2030 gives 07/01/2030).
 - **Student fields**: school, major and minor, GPA exactly as written (if the form wants a different scale, leave it), expected graduation, class standing, coursework, enrollment, returning to school, term, available dates.
 - **Sponsorship questions**: always the user's own answers from the profile, at every class year. Never work them out yourself: student visa situations (F-1, CPT, OPT) are nuanced. Forms ask two different things, so match the wording: a question about this internship only ("Do you need sponsorship for this role?") uses `needsSponsorshipForInternship` if the profile has it; any question that includes the future ("now or in the future") uses `needsSponsorship`. If the profile doesn't cover the question asked, leave it for the user. Answering these differently from the truth can get an offer withdrawn later, so they stay accurate even though sponsorship doesn't stop the application.
 - **Class year**: always the user's real class standing and graduation date, even when the posting asks for a different year. Forms may call a freshman "first-year" or "1st year". If a question asks the user to confirm they meet the posting's class-year requirement, answer truthfully. If a graduation date or year list doesn't offer the user's (it stops at 2029 for a June 2030 graduate), pick the closest one offered: the latest when all are earlier, the earliest when all are later. Leaving it blocks the form, and the user chose this on 2026-11-07. Record it as "2029 (closest offered; graduating Jun 2030)". The Fill button does the same and flags it in a "Check:" line. If a class-standing dropdown has no option that's true for the user (for example only Sophomore, Junior and Senior), leave it for the user and note it, rather than picking a different year. In written answers, don't apologize for being early in school; focus on what the user has done.
@@ -63,7 +67,7 @@ Open the form. If the site offers "Autofill from resume" (Workday does), accept 
 - **"Autofill from resume"**: accept it if offered, then check the parsed fields.
 - **Transcript**: attach transcript.pdf if asked for and present; if required and missing, leave it. Never type grades yourself.
 - **Open-ended questions**: specific to this company and team, built on real evidence, the user's own part of group projects, under 150 words unless asked for more, in the user's writing style (`writingStyle`), following any `extraRules` in the profile.
-- **New answers**: if the user tells you an answer the profile didn't have and it will come up again, offer to save it to profile.json (see `references/profile.md`).
+- **New answers**: if the user tells you an answer the profile didn't have and it will come up again, save it to profile.json without asking (see `references/profile.md`). In a batch, filling subagents don't edit profile.json (several at once would overwrite each other); they list new answers under `To save:` and the main conversation saves them.
 - **Cover letter**: only if required or the user asked. Under 250 words: why this company and team, one or two pieces of evidence, what they hope to learn and their availability. Draft and check it in scratch, then save `Firstname_Lastname_Cover_Letter_Company.pdf` in the job folder and attach it.
 - **Leave for the user**: self-identification questions the profile doesn't answer; religion and marital status; consent and certification checkboxes ("I agree to...", "I certify that..."), since ticking one is an agreement in the user's name; ID numbers, date of birth, bank details, referral codes, anything you'd have to guess, sign-ins, account creation, passwords and verification codes (hand these over as described under "Sign-ins and accounts"), CAPTCHAs, and coding challenges, online assessments or video interviews (stop there and note it). In Fill all and Submit, consent boxes, signatures and questions the profile doesn't answer are handled as in `references/submitting.md` instead; the rest of this list stays the user's.
 - **Don't submit here.** Stop on the last page before submit and leave the tab open. In Submit mode, submitting comes after steps 6 and 7, once the record and the tracker row exist (`references/submitting.md`).
@@ -95,7 +99,7 @@ The user will need this before interviews, and to remember what they told each c
 <answer, word for word>
 
 ## Agreed for you
-- <box or signature, as worded on the form>: <one line on what the linked text says>
+- <box or signature, as worded on the form, shortened; "(legal)" ones first>
 
 ## Left for you
 - <field>: <why>
@@ -104,3 +108,13 @@ The user will need this before interviews, and to remember what they told each c
 "Agreed for you" is only for Fill all and Submit; leave it out in Review mode. In Submit mode, the status line changes once the application is confirmed (`references/submitting.md`).
 
 Multi-page forms: add each page's fields as you finish it (each step's report covers only that step), so nothing is lost if a later page fails.
+
+## Logging the tracker row (SKILL.md step 7)
+
+This lives here, not in SKILL.md, so filling subagents in a batch need only this file: SKILL.md is about 5,000 tokens they would re-read on every call.
+
+```
+python scripts/tracker.py add "<folder>/tracker.xlsx" --set company="..." --set role="..." --set term="..." --set location="..." --set deadline="..." --set posting_url="..." --set folder="Applications/<job folder name>" --set resume="<PDF file name>" --set gaps="..." --set status="Ready to submit"
+```
+
+Use status `Needs you` with the reason in next_step when you had to stop (login, CAPTCHA, assessment, resume needs compiling in Overleaf), or `Skipped` for ineligible postings. If it reports the file is open in another program, ask the user to close tracker.xlsx in Excel, then run it again. If openpyxl is missing, install it with pip. Edit application-record.md and tracker.xlsx in place, and never delete a file in the user's folders (SKILL.md, "Files").
