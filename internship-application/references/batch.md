@@ -18,7 +18,7 @@ Use the subagent tool (Task or Agent, type `general-purpose`). Without one, foll
 5. **Hand-off**: one message for the whole batch: one line per tab (company and role, and what's needed: "sign in to Workday", "attach C:\\...\\Maya_Chen_Resume_Northwind.pdf"), then the questions from every form, grouped so one answer covers every form that asks it. Before sending, check each question against profile.json yourself (every field and `savedAnswers`, by meaning); send the ones it answers straight back to their subagents (step 6) instead of asking. In Submit mode without auto, also show the written answers the subagents drafted on the form (each record's "Written answers"); send this message even when nothing else needs the user, and wait.
 6. **Continue**: when the user is done, run the filling prompt again for each application, all at once as in step 4, with what the user did and their answers. Each continues from its application-record.md in the same tab. Repeat once if new steps came up.
 7. **Submit** (Submit mode only): do it yourself, never in a subagent. For each application whose check passed (or failed only on check 3, written answers, which the user has since seen and accepted), switch to its tab, confirm it's on the review page, and follow "Submitting" in submitting.md.
-8. **Report** once, one line per posting (step 8). Move processed links in jobs.txt below `# done`, editing in place. Held postings get one line together at the end ("Held, 2 per company: ...") and stay above `# done`. Save the answers listed under `To save:` to profile.json without asking (`references/profile.md`) and say in one line what you saved. End with one line telling the user to start a new conversation for the next batch.
+8. **Report** once, one line per posting (step 8). Move processed links in jobs.txt below `# done`, editing in place. Held postings get one line together at the end ("Held, 2 per company: ...") and stay above `# done`. Save the answers listed under `To save:` to profile.json without asking (`references/profile.md`) and say in one line what you saved. If profile.json changed in this batch, or any reply's `Extension answers:` is lower than its number of `savedAnswers`, add: "In the AutoInternship extension, open the profile page, click **Restore from backup** and choose <folder>/profile.json, so the Fill button uses the new answers." End with one line telling the user to start a new conversation for the next batch.
 
 A posting with a wall the user can't clear in the hand-off (a broken page, a closed posting, an assessment) is `Needs you`; move on.
 
@@ -91,6 +91,7 @@ Questions: <each question word for word, with its choices, or none>
 Written answers: <none, or "in application-record.md" for ones you drafted on the form>
 Agreed for you: <short list, or none>
 To save: <answers the user gave that will come up again, for profile.json, or none>
+Extension answers: <N from "Profile: N saved answers." in the Fill report, or none>
 Submit check: <passed | failed: which> (Submit mode only)
 ```
 

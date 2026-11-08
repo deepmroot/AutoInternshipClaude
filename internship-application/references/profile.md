@@ -46,4 +46,4 @@ Only when the folder has no profile.json:
 
 When the user gives an answer the profile didn't have and it will come up again, save it without asking and say in one line what you saved. Set the matching field; if none fits, add `{ "match": "<short phrase from the question>", "answer": "<their answer>" }` to `savedAnswers`. Don't save answers written for one company ("Why do you want to work here?").
 
-After any change, remind the user once per session to **Restore from backup** in the extension. If they changed answers in the extension instead, ask them to click **Download backup** and put the new profile.json in the job-search folder.
+End the report of every run that changed profile.json, or whose Fill report showed fewer saved answers than profile.json has, with this line: "In the AutoInternship extension, open the profile page, click **Restore from backup** and choose <folder>/profile.json, so the Fill button uses the new answers." If they changed answers in the extension instead, ask them to click **Download backup** and put the new profile.json in the job-search folder.
