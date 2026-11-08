@@ -30,9 +30,10 @@ Open the form. Accept "Autofill from resume" if offered (Workday), then check th
 
 - Press the Fill button and read its report in one browser batch: click **Fill with AutoInternship**, wait about 10 seconds, then `get_page_text`. The report is at the top of the form's text, starting "AutoInternship report:". If it says it's still filling, wait 5 seconds and read again. (`read_page` on the panel shows only its name.)
 - For a form embedded in a frame, open the frame's own address in the tab first (for Greenhouse, the `job-boards.greenhouse.io/embed/job_app?...` link).
-- Find fields with `read_page` (interactive filter) or `find`, not screenshots. Set values with `form_input` instead of clicking and typing.
+- Find fields with `read_page` (interactive filter) or `find`, not screenshots. Set values with `form_input` instead of clicking and typing. Click by reference when the page gives one, not by screen position.
+- Fill several fields per batch, so a page takes as few batches as possible.
 - Custom dropdowns: for one you can type into, click it, type the option's text and press Enter, in one batch. For a list button (Workday's "Select One"), click it and `find` the option in one batch, then click the option's reference. No screenshots to see options or check picks.
-- One screenshot per page or step, after filling and before Save and Continue, to check nothing is red or empty. Another only when something didn't take.
+- Screenshots: one per page or step, on its own after filling and before Save and Continue, to check nothing is red or empty, and one more only when something didn't take. Never add a screenshot to the end of a batch of actions. Check a click, a pick or typed text with `find` or the field's value in `read_page`, never a screenshot.
 - Don't reread the posting on the application page; it's in job-posting.md.
 - After Save and Continue, wait for the next step's heading (a short `find`) before pressing the Fill button again.
 
@@ -47,7 +48,7 @@ Open the form. Accept "Autofill from resume" if offered (Workday), then check th
    Text ending in "…" was cut short; take the full value from profile.json or the page.
 3. Skim Filled and Already filled against the profile and resume. Fix only what's clearly wrong, and mention it.
 4. Work through the Left list only, with the rules below. The resume upload is always on it.
-5. On multi-step forms (Workday), finish the step, click **Save and Continue** (never Submit), wait for the next step, and press the button again. Repeat until the review page.
+5. On multi-step forms (Workday), finish the step, click **Save and Continue** on every step, Application Questions included (never Submit), wait for the next step, and press the button again. Repeat until the review page.
 
 **Without it** (no tab, the built-in browser, or the panel says it couldn't fill), fill the whole form from the profile and the master resume.
 
