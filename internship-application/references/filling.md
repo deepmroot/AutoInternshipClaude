@@ -95,7 +95,7 @@ The user will need this before interviews, and to remember what they told each c
 <answer, word for word>
 
 ## Agreed for you
-- <box or signature, as worded on the form>: <one line on what the linked text says>
+- <box or signature, as worded on the form, shortened; "(legal)" ones first>
 
 ## Left for you
 - <field>: <why>

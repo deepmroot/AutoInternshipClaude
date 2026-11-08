@@ -8,22 +8,14 @@ The goal is a form where the only thing left is the Submit button. In Review mod
 
 ### Consent, acknowledgement and certification boxes
 
-Forms ask the applicant to accept a privacy notice, confirm they've read a policy (on AI tools in interviews, on working in the office), or certify that what they entered is true. Ticking one is an agreement in the user's name, so read before you tick:
+Forms ask the applicant to accept a privacy notice, confirm they've read a policy (on AI tools in interviews, on working in the office), agree to terms, or certify that what they entered is true. In Fill all the user has asked you to tick all of them in their name, so no form stops for one. This was the user's call on 2026-11-07: reading each policy cost steps and tokens, and the boxes this skill used to leave kept forms from being finished.
 
-1. **Read it once.** The box's own text, and the linked policy if there is one, from the page text (not screenshots). Read each company's policy once, then reuse what you learned for the rest of that application.
-
-   **Privacy notices are the exception: don't open them.** When the box (or a required dropdown, as on DoorDash's and Roblox's forms) only asks the user to accept or acknowledge a privacy notice or policy (how the company collects, stores and uses applicant data), tick or choose the acknowledgement from its own wording without opening the link. The user chose this: these notices are standard, and opening one cost thousands of tokens and several steps on every application. If the box's own wording also covers something on the "Leave it" list below (arbitration, a background check), it's more than a privacy notice, so handle it as usual.
-2. **Tick it** when it's a normal part of applying: how the company stores and uses applicant data, keeping the application on file, being contacted about this application, that the information is accurate, that the user has read a policy on AI tools or office attendance.
-3. **Leave it** when it goes beyond applying, and that application then stops before Submit:
-   - an arbitration agreement, or giving up the right to sue or join a class action;
-   - permission for a background, credit or drug check;
-   - a non-compete or non-solicitation promise;
-   - anything that costs money;
-   - text you couldn't read (a broken link, or one behind a sign-in), other than a privacy notice you didn't need to open.
-
-   These are the user's call, one by one. If they say to tick one kind ("arbitration is fine"), do it for that request only.
-4. **Optional opt-ins** that applying doesn't need (marketing emails, a talent community, texts about other jobs): leave them as they are, unless the profile's `savedAnswers` covers them. A required yes-or-no about text messages is a question, not a box: if no saved answer covers it, ask (below).
-5. **Record each one** under "Agreed for you" in application-record.md: the box's wording, shortened, and one line on what the linked text says (for a privacy notice, "privacy notice, not opened"). The user may need it later, and it shows exactly what was agreed in their name.
+1. **Tick every box that agrees, accepts, acknowledges, consents, certifies or authorizes.** Go by the box's own wording, and don't open linked policies. That includes the ones this skill used to leave for the user: arbitration agreements and class-action waivers, permission for background, credit or drug checks, non-compete or non-solicitation promises, and policies behind a broken link or a sign-in. A required dropdown that only asks the user to accept or acknowledge (as on DoorDash's and Roblox's forms) is the same: choose the acceptance.
+2. **Except these:**
+   - **A box that states a fact about the user** ("I am authorized to work in the U.S. without sponsorship", "I am 18 or older", "I have a valid driver's license", "I will graduate by June 2027") is an answer, not an agreement. Tick it only when the profile or the master resume says it's true. Otherwise it's a question for the user (below), and sponsorship comes only from the profile. Ticking a false one would put a false statement on the application in the user's name. "I certify that the information I entered is accurate" is an agreement: tick it.
+   - **Anything that charges money** (an application fee, a paid assessment): leave it, and that application stops before Submit. Internships almost never charge, and a fee is a common sign of a scam.
+   - **Optional opt-ins** that applying doesn't need (marketing emails, a talent community, texts about other jobs): leave them as they are, unless the profile's `savedAnswers` covers them. They never block a form. A required yes-or-no about text messages is a question, not a box: if no saved answer covers it, ask (below).
+3. **Record each one** under "Agreed for you" in application-record.md: the box's wording, shortened. List arbitration, background-check and non-compete agreements first, each marked "(legal)", so the user can find them later. The record shows exactly what was agreed in their name.
 
 ### Signatures
 
@@ -61,7 +53,7 @@ On the last page before Submit (Workday's review page), every one of these must 
 1. Every required field is filled, and the page shows no error or warning.
 2. The attached resume is this job's tailored PDF: its file name shows on the page, not an older resume the site kept.
 3. Each written answer on the page is the one drafted for this posting, and the user saw it at the checkpoint or in the hand-off message (unless they said auto).
-4. Nothing required is still open: nothing on the extension's Left list, no unanswered question, and no required box from the "Leave it" list above.
+4. Nothing required is still open: nothing on the extension's Left list, no unanswered question, and no box left because it charges money.
 5. Every answer came from the profile, the master resume, the user or this posting. None was guessed, and sponsorship and self-identification came only from the profile.
 6. The tracker has no `Submitted` row for the same company and role, unless the user said at step 1 to apply again. An application can't be withdrawn once it's sent, and some companies cap how many you can send (Figma allows 5 in 30 days).
 7. application-record.md has every field from every page, and the tracker row is there.
