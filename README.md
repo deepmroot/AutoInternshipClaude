@@ -30,7 +30,7 @@ It submits only when you ask it to, and never uses LinkedIn, never types passwor
 3. Open the Claude desktop app, go to **Cowork** and choose your job-search folder ([help](https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork)).
 4. Ask things like "Find data internships in CA", "Work through jobs.txt", "I submitted Northwind" or "Help me prep for my interview Tuesday".
 
-In a batch, Claude tailors all the resumes at once and fills all the forms at the same time.
+In a batch, Claude tailors all the resumes at once and fills all the forms at the same time. It applies to at most two roles per company in 30 days, so recruiters don't see a flood of applications from you; the rest wait in `jobs.txt`.
 
 Claude adds `Applications/` (one folder per application) and `tracker.xlsx` to your folder.
 
