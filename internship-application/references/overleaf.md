@@ -1,24 +1,22 @@
 # Tailoring an Overleaf (LaTeX) resume
 
-The master lives in the job-search folder under `resume/`, downloaded from Overleaf with Menu → Download → Source and unzipped. Never edit the master itself. Copy it into your scratch space, tailor and build the copy there, and only after it passes the checks in SKILL.md, copy the PDF and the tailored source (as `resume-src/`) into the job folder. That way the user's folder only ever receives finished files, and each application keeps the exact source that produced its PDF.
+The master is under `resume/` in the job-search folder (Overleaf: Menu → Download → Source, unzipped). Never edit it. Tailor and build a copy in scratch space; only after it passes the checks, copy the PDF and the tailored source (as `resume-src/`) into the job folder.
 
 ## Find the main file
 
-It's the .tex file containing `\documentclass`. If several do, prefer `main.tex`, then the one named like a resume. Files pulled in with `\input` or `\include` are part of the resume too; edit them in the copy the same way.
+The .tex file with `\documentclass`. If several have it, prefer `main.tex`, then one named like a resume. Files pulled in with `\input` or `\include` are part of the resume; edit them in the copy too.
 
 ## Edit only the words
 
-Resume templates define their own commands in the preamble (everything before `\begin{document}`), for example `\resumeItem{...}`, `\resumeSubheading{title}{dates}{organization}{location}` or `\resumeProjectHeading{...}{date}`. The layout lives in those definitions, so:
+Templates define their own commands in the preamble (before `\begin{document}`), such as `\resumeItem{...}`, `\resumeSubheading{title}{dates}{organization}{location}` or `\resumeProjectHeading{...}{date}`.
 
-- Leave the preamble and every `\newcommand` definition alone, apart from the spacing numbers you may adjust when squeezing (see "Squeezing a little" in tailoring.md), and one more exception: if the document compiles with pdflatex and the preamble lacks `\input{glyphtounicode}` and `\pdfgentounicode=1`, add both to the copy. They change nothing visible and make the text extract correctly for applicant tracking systems.
-- Change only the text inside the arguments of the template's commands and plain text in the body.
-- Reorder by moving whole items: one `\resumeItem{...}` line, or a whole heading with its item list. Trim by deleting whole items. Keep every `{` matched with its `}`.
-- Keep the master's conventions: its date style (`Jan 2026 -- Present`), separators (`$|$`), capitalization and bold or italic usage.
-- Lines starting with `%` are comments. Students often keep old bullets commented out; those are the user's own material, so you may uncomment one if it fits this internship better than what's showing.
+- Leave the preamble and every `\newcommand` definition alone, except the spacing numbers you may adjust when squeezing (tailoring.md), and: if it compiles with pdflatex and lacks `\input{glyphtounicode}` and `\pdfgentounicode=1`, add both to the copy.
+- Change only the text inside the template commands' arguments and plain body text.
+- Reorder by moving whole items (one `\resumeItem{...}` line, or a heading with its item list). Trim by deleting whole items. Keep every `{` matched with its `}`.
+- Keep the master's conventions: date style (`Jan 2026 -- Present`), separators (`$|$`), capitalization, bold and italics.
+- Lines starting with `%` are comments. You may uncomment an old bullet if it fits this internship better.
 
 ## Escape special characters in anything you write
-
-LaTeX treats these characters as commands. Unescaped, they break the build or, worse, silently hide text.
 
 | Write | As | Example |
 |---|---|---|
@@ -31,20 +29,20 @@ LaTeX treats these characters as commands. Unescaped, they break the build or, w
 | ~ | `\textasciitilde{}` | |
 | ^ | `\textasciicircum{}` | |
 
-An unescaped `%` is the dangerous one: it comments out the rest of the line, so a bullet loses its ending and the closing brace, and the build fails far from the real mistake. `C++`, `/`, `-` and `.` are fine as they are. Copy the master's way of writing quotes and dashes.
+An unescaped `%` comments out the rest of the line, including the closing brace. `C++`, `/`, `-` and `.` are fine. Copy the master's quotes and dashes.
 
 ## Build and check
 
-`check_tailored.py` (SKILL.md step 3) builds the copy first, with `build_resume.py`. Add `--expect` with one or two phrases you just added, so you know they made it into the PDF's text. What its exit codes mean for a LaTeX copy:
+`check_tailored.py` builds the copy with `build_resume.py`. Add `--expect` with one or two phrases you just added. Exit codes:
 
-- **0 or 2, built.** Lines running past the margin mean a new line is too long; shorten it. If `fix` says expected text isn't readable, the PDF's text layer is broken and tracking systems won't read it: for pdflatex, make sure the preamble has `\input{glyphtounicode}` and `\pdfgentounicode=1`, adding them to the copy if not. If it warns that margins are too tight or text is below 9pt, undo the last squeeze.
-- **2 with `lines_over`, too long.** Roughly how many lines spill past page one. Cut low-value content first, following "Trimming to one page" in tailoring.md. If only a few lines remain over and the next item is a strong match for the posting, squeeze instead, within the limits in tailoring.md. Then run it again.
-- **Space at the bottom** (empty lines under `review`): add about that many lines from the master, following "Filling the page" in tailoring.md, and run it again. Leave the space only when nothing else in the master fits the posting, and say so in changes.md.
-- **1, compile error.** Read `errors`, `suspect_lines` and `hints`. It's almost always a special character or a brace in text you added. Fix and run it again. After three failed tries, undo your last round of edits and build that instead, then tell the user what you couldn't change.
-- **3, no LaTeX here.** The bullet comparison and fact-check still ran on the .tex: handle what they flag, save the copy to the job folder as `resume-src/`, and tell the user to compile it in Overleaf: zip the resume-src folder and use New Project → Upload Project, or paste the changed lines into a copy of their project. Keep filling the rest of the application, leave the resume upload for the user, and log the row with status `Needs you` and next step "compile resume in Overleaf, then attach".
+- **0 or 2, built.** Lines past the margin: shorten the new line. `fix` saying expected text isn't readable: for pdflatex, make sure the copy's preamble has `\input{glyphtounicode}` and `\pdfgentounicode=1`. Margins too tight or text below 9pt: undo the last squeeze.
+- **2 with `lines_over`, too long**: trim ("Trimming to one page" in tailoring.md), or squeeze when only a few lines are over and the next cut is a strong match. Run again.
+- **Space at the bottom** (empty lines under `review`): add lines ("Filling the page" in tailoring.md) and run again. Leave the space only when nothing else fits, and say so in changes.md.
+- **1, compile error**: read `errors`, `suspect_lines` and `hints`; it's almost always a special character or brace in your text. Fix and run again. After three failed tries, undo your last round of edits, build that, and tell the user what you couldn't change.
+- **3, no LaTeX here**: handle what the bullet comparison and fact-check flagged, save the copy to the job folder as `resume-src/`, and tell the user to compile it in Overleaf (zip resume-src and use New Project → Upload Project, or paste the changed lines into a copy of their project). Keep filling the application, leave the resume upload for the user, and log the row as `Needs you` with next step "compile resume in Overleaf, then attach".
 
-If the error is a missing package or font that's not in the project folder (for example fontawesome5 icons), treat it like exit 3: the user's Overleaf has it even when this machine doesn't.
+A missing package or font that isn't in the project folder (such as fontawesome5) counts as exit 3.
 
 ## Keeping a copy in Overleaf
 
-The user doesn't need to, since the PDF and its source are in the job folder. If a build you already saved turns out wrong, rebuild in scratch and save again, moving the saved PDF and resume-src/ into `_old/` first (SKILL.md step 3), never overwriting or deleting them. If they want the tailored version in Overleaf too, zip resume-src and upload it with New Project → Upload Project.
+Not needed: the PDF and source are in the job folder. To redo a saved build, rebuild in scratch and save again, moving the saved PDF and resume-src/ into `_old/` first. To get the tailored version into Overleaf, zip resume-src and use New Project → Upload Project.
