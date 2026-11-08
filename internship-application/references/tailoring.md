@@ -153,7 +153,7 @@ The facts must match; the "1,200" comes from the master.
 - Dates in the master's format, consistently.
 - Never hide keywords in white or tiny text.
 
-**Keywords.** Where the user really has the skill, use the posting's exact wording ("SQL", "data visualization"). `ats_check.py` lists the posting keywords the resume shows, the ones in the master this version leaves out (bring those back where they fit), and the ones the user doesn't have (gaps; never add them, not even in skills). It also catches the name not readable as text, ligatures ("eﬃcient" won't match "efficient"), words running together, two-column layouts and fonts not embedded: fix those before saving.
+**Keywords.** Where the user really has the skill, use the posting's exact wording ("SQL", "data visualization"). `ats_check.py` lists the posting keywords the resume shows, the ones in the master this version leaves out (bring those back where they fit), and the ones the user doesn't have (gaps; never add them, not even in skills). It also catches the name not readable as text, ligatures ("eﬃcient" won't match "efficient"), words running together, two-column layouts and fonts not embedded: fix those before saving. A two-column flag on a page with one column is wrong: note it in changes.md and change nothing. Never cut content to clear a layout flag.
 
 If the master uses a two-column or icon-heavy template, keep its look, and tell the user once that a single-column template parses more reliably.
 

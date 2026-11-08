@@ -119,6 +119,27 @@
     // Never needing sponsorship covers this role too.
     return later === 'no' && now !== 'yes' ? 'no' : null;
   }
+  // Some forms ask it the other way round: "Are you authorized to work in the US and will not require
+  // sponsorship now or in the future?", "Can you work here without sponsorship?". Yes there means no
+  // sponsorship, so the plain answer would say the opposite of the truth (an iCIMS form got Yes from a
+  // profile that will need sponsorship). Yes only when you're authorized and won't need it; No when either
+  // fails. Only the question itself counts (its last sentence ending in "?"), so a requirement in front of
+  // it ("Applicants must be authorized to work without sponsorship. Will you require sponsorship?") keeps
+  // the plain answer. The negation has to sit in the same clause as "require/need ... sponsorship".
+  const NO_SPONSOR = /\bwithout\b(\s+[\w-]+){0,4}\s+sponsor\w*|\b(not|never|won't|don't|doesn't|wouldn't)\s+(\w+\s+){0,5}?(require|need)\w*(\s+[\w()-]+){0,4}\s+sponsor\w*/;
+  // The usual question ("Will you now or in the future require sponsorship?"), not negated.
+  const ASKS_SPONSOR = /\b(will|do|would|does) you\b(\s+(?!not\b|never\b)[\w-]+){0,6}\s+(require|need)\w*(\s+[\w()-]+){0,4}\s+sponsor\w*/;
+  function sponsorQuestion(p, label) {
+    const asks = noExamples(label).match(/[^.?!]*\?/g);
+    const ask = asks ? asks[asks.length - 1] : noExamples(label);
+    if (!NO_SPONSOR.test(ask)) return sponsorAnswer(p, label);
+    // Both ways in one sentence: which way Yes points isn't clear, so leave it.
+    if (ASKS_SPONSOR.test(ask)) return null;
+    const need = sponsorAnswer(p, label);
+    const authorized = yn(p.workAuthorized);
+    if (authorized === 'no' || need === 'yes') return 'no';
+    return authorized === 'yes' && need === 'no' ? 'yes' : null;
+  }
 
   // Government ties, asked on many finance, consulting and defense applications for anti-bribery checks:
   // "Are you, or have you been, a government official or employee?", "Is a close relative a public official?".
@@ -195,7 +216,7 @@
     { re: /\bavailable (until|through)\b|\b(internship|availability) end( date)?\b|\bend date of (your )?availability\b|\blatest (possible )?end date\b/, max: 100, kinds: ['text'], value: (p) => p.availableUntil },
 
     { re: /\byears of (\w+ )?experience\b|\bhow many years\b/, max: 70, not: /\b(with|using|in)\b/, value: (p) => p.yearsExperience },
-    { re: /\bsponsor\w*/, max: 250, yesno: true, countryCheck: true, kinds: YESNO_KINDS, value: sponsorAnswer },
+    { re: /\bsponsor\w*/, max: 250, yesno: true, countryCheck: true, kinds: YESNO_KINDS, value: sponsorQuestion },
     { re: /\b(authori[sz]ed|eligible|permitted|entitled|legally able|allowed) to work\b|\bwork authori[sz]ation\b|\bright to work\b/, max: 250, not: /\bsponsor\w*/, yesno: true, countryCheck: true, kinds: YESNO_KINDS, value: (p) => yn(p.workAuthorized) },
     { re: GOVERNMENT, max: 300, not: GOVERNMENT_NOT, yesno: true, kinds: YESNO_KINDS, value: governmentAnswer },
     { re: /\brelocat\w*/, max: 200, not: /\b(assistance|package|benefit\w*|support|cost\w*|expenses?)\b/, yesno: true, kinds: YESNO_KINDS, value: (p) => yn(p.willingToRelocate) },
