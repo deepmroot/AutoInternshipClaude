@@ -61,8 +61,41 @@ NOT_TERMS = {'we', 'you', 'our', 'the', 'this', 'job', 'intern', 'internship', '
              'november', 'december', 'monday', 'friday', 'bachelor', 'master', 'phd', 'gpa', 'pm', 'am', 'pt', 'et'}
 
 
+MONTH = r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?|spring|summer|fall|autumn|winter'
+WHEN = rf'((expected|anticipated|since)\s+)?(({MONTH})\s+)?\d{{4}}'
+# What a heading line pushes to the right margin: "May 2025 - Present", "Expected Jun 2029", "Stanford, CA".
+DATE_OR_PLACE = re.compile(rf'^({WHEN}(\s*(-|–|—|to)\s*({WHEN}|present|current|now))?'
+                           r"|[A-Z][A-Za-z.'\- ]*,\s*[A-Z][A-Za-z.\- ]*|remote)$", re.I)
+
+
 def run(cmd):
     return subprocess.run(cmd, capture_output=True, text=True, errors='replace')
+
+
+def two_columns(layout_text):
+    """True when the page has a gutter: a position where many lines have text on both sides with a blank
+    between, and few lines run through it. In a single-column resume the bullets run across the whole
+    width, so every inner position has lines running through it, and a title with its dates pushed to
+    the right margin is still one column. Counting lines with two text parts instead flags almost every
+    single-column resume (each heading line has two parts) and can miss a real sidebar, since
+    pdftotext -layout often leaves only two or three spaces between columns."""
+    lay = [l.rstrip() for l in layout_text.splitlines() if l.strip()]
+    if not lay:
+        return False
+    width = max(len(l) for l in lay)
+    for c in range(int(width * 0.2), int(width * 0.8) + 1):
+        split = through = 0
+        for l in lay:
+            left, right = l[:c].strip(), l[c + 2:].strip()
+            if not left or not right:
+                continue
+            if l[c:c + 2].strip():
+                through += 1
+            elif not DATE_OR_PLACE.match(right):
+                split += 1
+        if split >= 3 and (split - through) / len(lay) >= 0.15:
+            return True
+    return False
 
 
 def pdf_text(path, layout=False):
@@ -168,10 +201,7 @@ def main():
     if len(run_together) >= 2:
         problems.append('Some words run together without spaces: ' + ', '.join(run_together[:5]) + '. An ATS may not find keywords inside them.')
 
-    lay = [l for l in layout.splitlines() if l.strip()]
-    two_sided = sum(1 for l in lay if (lambda parts: len(parts) >= 2 and all(len(p.split()) >= 4 for p in parts[:2]))(
-        [p for p in re.split(r'\s{4,}', l.strip()) if p]))
-    two_column = len(lay) > 0 and two_sided >= 3 and two_sided / len(lay) >= 0.10
+    two_column = two_columns(layout)
     if two_column:
         problems.append('This looks like a two-column layout. Many ATS read straight across the page and mix the columns. A single column is safest.')
 
