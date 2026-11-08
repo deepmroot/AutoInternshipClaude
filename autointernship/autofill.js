@@ -161,7 +161,7 @@
     { re: /\bportfolio\b|\bpersonal (web ?)?site\b|^(personal |your )?web ?site( url)?$|\bhomepage\b|^other (web ?site|url|link)s?$|^urls?$|\bblog\b/, max: 80, url: true, not: /\b(linked ?in|twitter|facebook|instagram|company|employer)\b/, value: (p) => p.portfolio || p.website },
     { re: /^(current |your |home )?location$|\bwhere are you (currently )?(located|based)\b|^city,? state\b|^current (city|location)\b|^location \(city\)$|^based in\b/, max: 60, value: loc },
     { re: /\bcity\b|\btown\b/, ac: ['address-level2'], max: 40, not: /\b(desired|prefer\w*|relocat\w*|birth)\b/, value: (p) => p.city },
-    { re: /^(state|province|region|county)$|^state ?(\/|or) ?province$|^state of residence$/, hint: /\b(state|province|region)$/, ac: ['address-level1'], max: 40, value: (p) => p.state },
+    { re: /^(state|province|region)$|^state ?(\/|or) ?province$|^state of residence$/, hint: /\b(state|province|region)$/, ac: ['address-level1'], max: 40, value: (p) => p.state },
     { re: /\bzip\b|\bpostal\b|\bpost ?code\b/, ac: ['postal-code'], max: 40, value: (p) => p.postalCode },
     { re: /\bcountry\b/, ac: ['country', 'country-name'], max: 40, not: /\b(code|phone|dial|citizen\w*|authori\w*|visa|which countr\w*|other countr\w*)\b/, value: (p) => p.country },
     { re: /\bstreet\b|^address( line)? ?1$|^(home |mailing |street |current )?address$/, hint: /\baddress line ?1$|\bstreet( address)?$|^address$/, ac: ['address-line1', 'street-address'], max: 40, not: /\b(e[ -]?mail|ip|web|url|line ?2|address ?2|apartment|apt|suite|city|state|zip|postal|country)\b/, value: (p) => p.street },
@@ -814,11 +814,37 @@
 
   // Workday puts the current choice and "Required" into the button's aria-label ("Country Select One Required",
   // "Country United States of America Required"), so both come out of the label.
+  // Its Application Questions label the button only " Select One Required" and put the question in the <legend> of
+  // the fieldset around it. Without the legend every one of them was reported as an unlabeled "(dropdown)" and left,
+  // and Claude picked them by hand, a click and a screenshot each. The legend is read only when the button's own
+  // label was nothing but those words, so buttons on other sites keep the label they had.
   function buttonLabel(el) {
-    let t = rawLabel(el);
+    const own = rawLabel(el);
+    let t = own;
     const shown = el.textContent.replace(/\s+/g, ' ').trim();
     if (shown) t = t.split(shown).join(' ');
-    return t.replace(/\bselect one\b/gi, ' ').replace(/\brequired\b/gi, ' ');
+    t = t.replace(/\bselect one\b/gi, ' ').replace(/\brequired\b/gi, ' ');
+    if (!norm(t) && norm(own)) {
+      const set = el.closest('fieldset');
+      const legend = set && set.querySelector('legend');
+      if (legend && controlCount(set) <= 1) t = cleanText(legend); // one question per fieldset (plus Workday's hidden text box)
+    }
+    return t;
+  }
+
+  // Workday's search lists: a "Search" box over a list of chosen items ("1 item selected"), used for How Did You Hear,
+  // Field of Study, Skills and the phone country code. Typing into the box only searches, so these were reported as
+  // Filled with nothing chosen, and the phone code (already chosen) as left. Report what is chosen, else leave it.
+  function noteSearchList(el, stats) {
+    const list = el.closest('[data-uxi-widget-type="multiselect"]') || el.parentElement;
+    if (!isVisible(list)) return;
+    const raw = rawLabel(el);
+    const chosen = [...list.querySelectorAll('[data-automation-id="selectedItem"]')].map((n) => {
+      const p = n.querySelector('[data-automation-label]');
+      return (p && p.getAttribute('data-automation-label')) || cleanText(n);
+    }).filter(Boolean);
+    if (chosen.length) notePrefilled(stats, raw, chosen.join('; '));
+    else noteLeft(list, stats, raw, 'search list', { required: isRequired(el, raw) });
   }
 
   // A full mouse click, for widgets that open or choose on mousedown (React-Select) or on click (Workday).
@@ -1122,6 +1148,7 @@
       // own "required" check works. Nobody fills it, but counting it listed every Greenhouse dropdown twice
       // in the report, once as an unlabeled "Select..." text box.
       if (tag === 'INPUT' && el.getAttribute('aria-hidden') === 'true') continue;
+      if (tag === 'INPUT' && el.getAttribute('data-uxi-widget-type') === 'selectinput') { noteSearchList(el, stats); continue; }
 
       // Workday-style dropdown: a button that opens a list, showing the current choice as its text.
       if (tag === 'BUTTON') {
@@ -1164,7 +1191,9 @@
         notePrefilled(stats, raw, kind === 'select' ? el.options[el.selectedIndex].text : el.value, res && res.rule && res.rule.name ? res.value : null);
         continue;
       }
-      if (res && apply(el, kind, res)) {
+      // hasValue: some boxes throw away what they don't accept (Workday's compensation box kept nothing of
+      // "Flexible"), and those were reported as Filled with an empty value.
+      if (res && apply(el, kind, res) && hasValue(el)) {
         noteFilled(el, stats, raw, kind === 'select' ? el.options[el.selectedIndex].text : el.value, res.nearest ? res.value : null);
       } else {
         const options = kind === 'select' ? optionTexts([...el.options].map((o) => ({ text: o.text, val: o.value }))) : null;
