@@ -68,7 +68,7 @@ Never operate LinkedIn: no Easy Apply, no browsing or reading its pages. Its ter
 python scripts/fetch_posting.py "<link>" --out-dir "<scratch>/postings" --tracker "<folder>/tracker.xlsx"
 ```
 
-It writes the posting as markdown, with the form's questions where the site publishes them (Greenhouse, Ashby). It covers Greenhouse, Ashby, Lever, Workday, SmartRecruiters and Rippling. When it can't (`error`), or for the user's open tab or pasted text, use the browser or the text. On `network_blocked`, pass its `hint` to the user once and use the browser for the rest of the session; do the same if every link fails with "couldn't connect". Follow job boards through to the real application form at step 5.
+It writes the posting as markdown, with the form's questions where the site publishes them (Greenhouse, Ashby). It covers Greenhouse, Ashby, Lever, Workday, SmartRecruiters, Rippling and Oracle. When it can't (`error`), or for the user's open tab or pasted text, use the browser or the text. On `network_blocked`, pass its `hint` to the user once and use the browser for the rest of the session; do the same if every link fails with "couldn't connect". Follow job boards through to the real application form at step 5.
 
 Capture: company, role, term, dates or length, location and on-site policy, pay, deadline, eligibility (class year, graduation window, degree level, majors, enrollment), required documents and the URL. On `check_company`, confirm the company name from the description.
 
