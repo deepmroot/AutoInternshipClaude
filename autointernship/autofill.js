@@ -541,7 +541,10 @@
       }
       case 'veteran':
         if (p.veteranStatus === 'decline') return DECLINED;
-        if (p.veteranStatus === 'no') return [has(/^no\b/, DECLINE), has(/\bnot a (protected )?veteran\b/, /\bveteran but\b/, DECLINE)];
+        // "I identify as a veteran, just not a protected veteran" also contains "not a protected veteran", so any
+        // option that says you are a veteran is ruled out. The old test for "veteran but" missed it: norm() keeps
+        // the comma, and Workday writes "just not". It was picked for non-veterans whenever it came first.
+        if (p.veteranStatus === 'no') return [has(/^no\b/, DECLINE), has(/\bnot a (protected )?veteran\b/, /\b(identify as|am|i'm) a veteran\b/, DECLINE)];
         if (p.veteranStatus === 'protected') return [has(/^yes\b/, DECLINE), has(/\bidentify as (one or more|a protected)\b|\bprotected veteran\b/, /\bnot\b/, DECLINE)];
         return [];
       case 'disability':
@@ -898,10 +901,48 @@
     try { d.el.blur(); } catch (_) { /* ignore */ }
   }
 
+  // Scrolls a dropdown to the middle of the window before opening it, and lets the scroll settle. Workday
+  // closes an open list when the page scrolls. On long Application Questions pages (14 and 17 questions) the
+  // first list didn't take and no list after it opened, while a 4-question page filled fine, and Claude's own
+  // picks, which scroll to the button first, always worked. A button near the bottom edge counts too: its list
+  // opens below the edge, takes focus, scrolls the page and closes. The top band is left alone because sticky
+  // headers cover it.
+  async function bringIntoView(el) {
+    const r = el.getBoundingClientRect();
+    if (r.top >= window.innerHeight * 0.15 && r.bottom <= window.innerHeight * 0.55) return;
+    try { el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }); } catch (_) { return; }
+    await wait(300);
+  }
+
+  // Waits for the list to close, so the next dropdown starts with none open: openOptions() skips lists that
+  // were already showing, so one left open would hide the next dropdown's options. If the dropdown's own
+  // Escape didn't close it, Escape goes to the list and to whatever has focus.
+  async function waitClosed(list) {
+    if (!list) return;
+    const gone = () => !list.isConnected || !isVisible(list);
+    if (await waitFor(gone, 400)) return;
+    key(list, 'Escape');
+    const f = document.activeElement;
+    if (f && f !== document.body && f !== list) key(f, 'Escape');
+    await waitFor(gone, 300);
+  }
+
+  const listOf = (options) => (options && options[0] ? options[0].el.closest('[role="listbox"]') : null);
+
   // d: { el (the input or button), box (the visible control), res (your answer) }
   // Returns { text } of the option chosen, or { options } (the choices seen) when it couldn't choose.
+  // A list button gets a second try when no list was seen or the pick didn't take, as a person would click
+  // again: a Workday list can close the moment it opens (see bringIntoView), for example at the foot of the
+  // page, where the button can't be scrolled to the middle. A list with no matching option isn't tried again.
   async function fillDropdown(d) {
+    let r = await tryDropdown(d);
+    if (r.retry && d.el.tagName === 'BUTTON' && looksEmpty(shownText(d))) r = await tryDropdown(d);
+    return r.text ? { text: r.text } : { options: r.options };
+  }
+
+  async function tryDropdown(d) {
     const { el, box, res } = d;
+    await bringIntoView(box || el);
     const before = new Set(shownLists());
     if (el.tagName === 'BUTTON') {
       press(el);
@@ -920,22 +961,30 @@
       pick = await waitFor(() => { const o = openOptions(el, before); if (o) options = o; return o && pickOption(o, res); }, 1500);
     }
 
-    if (!pick) { closeDropdown(d); return { options: options ? optionTexts(options) : [] }; }
+    const list = listOf(options);
+    if (!pick) { closeDropdown(d); await waitClosed(list); return { options: options ? optionTexts(options) : [], retry: !options }; }
     d.nearest = !!pick.nearest; // the report flags it
     press(pick.el);
-    await wait(150);
     // Check it took: the box should now show the chosen option rather than its placeholder. Some show only
     // part of it: Greenhouse's phone country box shows "+1" once "United States +1" is chosen (as "+ 1",
     // since React writes the "+" and the "1" separately, hence the comparison without spaces).
-    const shown = shownText(d);
+    // Checked for up to a second, not once: a long form can take a while to redraw. A button redrawn as a
+    // new element is found again by its id.
     const want = norm(pick.text);
     const bare = (s) => s.replace(/\s+/g, '');
-    if (!looksEmpty(shown) && (shown.includes(want.slice(0, 24)) || (bare(shown).length >= 2 && bare(want).includes(bare(shown))))) {
-      try { el.blur(); } catch (_) { /* ignore */ }
+    const took = () => {
+      if (d.box === d.el && !d.el.isConnected && d.el.id) { const n = byId(d.el, d.el.id); if (n) d.el = d.box = n; }
+      const shown = shownText(d);
+      return !looksEmpty(shown) && (shown.includes(want.slice(0, 24)) || (bare(shown).length >= 2 && bare(want).includes(bare(shown))));
+    };
+    if (await waitFor(took, 1000)) {
+      try { d.el.blur(); } catch (_) { /* ignore */ }
+      await waitClosed(list);
       return { text: pick.text };
     }
     closeDropdown(d);
-    return { options: optionTexts(options) };
+    await waitClosed(list);
+    return { options: optionTexts(options), retry: true };
   }
 
   /* ---------- Radio buttons ---------- */
@@ -1128,7 +1177,9 @@
     const resume = opts.skipResume ? null : data.resume || null;
 
     clearMarks();
-    const stats = { filled: 0, left: 0, resume: null, fields: [], prefilled: [], todo: [] };
+    // saved: how many saved answers the extension has. Claude adds new ones to profile.json, which reaches the
+    // extension only when you restore it from that backup; the count in the report shows when that was missed.
+    const stats = { filled: 0, left: 0, resume: null, fields: [], prefilled: [], todo: [], saved: (p.savedAnswers || []).length };
     const counters = Object.create(null);
     const state = { resumeDone: false };
     const groups = new Map();

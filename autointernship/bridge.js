@@ -148,7 +148,8 @@
 
   function reportText(r) {
     if (!r.ok) return `AutoInternship couldn't fill this page: ${r.error}`;
-    const lines = [`AutoInternship report: filled ${r.filled}, left ${r.left}.`];
+    // The saved-answer count lets Claude see when the extension is behind profile.json (see autofill.js).
+    const lines = [`AutoInternship report: filled ${r.filled}, left ${r.left}.${r.saved != null ? ` Profile: ${r.saved} saved answers.` : ''}`];
     const differ = r.prefilled.filter((f) => f.profile);
     const same = r.prefilled.filter((f) => !f.profile);
     if (differ.length) {
