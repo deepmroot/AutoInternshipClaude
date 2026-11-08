@@ -1,6 +1,6 @@
 # Filling the application
 
-Read this before filling a form (SKILL.md steps 5 and 6), the first time in a session. Everything in SKILL.md still applies; this file has the browser rules and how to answer each kind of question. It was split out of SKILL.md on 2026-11-05 so each file stays well under the 30,000 characters a command shows at once: subagents reading a longer SKILL.md got it cut off.
+Read this before filling a form (SKILL.md steps 5 and 6), the first time in a session. Everything in SKILL.md still applies; this file has the browser rules, how to answer each kind of question, the record and the tracker row. Filling subagents in a batch read only this file (and submitting.md), so whatever they need belongs here. It was split out of SKILL.md on 2026-11-05 so each file stays well under the 30,000 characters a command shows at once: subagents reading a longer SKILL.md got it cut off.
 
 ## Browsers, file uploads and sign-ins
 
@@ -108,3 +108,13 @@ The user will need this before interviews, and to remember what they told each c
 "Agreed for you" is only for Fill all and Submit; leave it out in Review mode. In Submit mode, the status line changes once the application is confirmed (`references/submitting.md`).
 
 Multi-page forms: add each page's fields as you finish it (each step's report covers only that step), so nothing is lost if a later page fails.
+
+## Logging the tracker row (SKILL.md step 7)
+
+This lives here, not in SKILL.md, so filling subagents in a batch need only this file: SKILL.md is about 5,000 tokens they would re-read on every call.
+
+```
+python scripts/tracker.py add "<folder>/tracker.xlsx" --set company="..." --set role="..." --set term="..." --set location="..." --set deadline="..." --set posting_url="..." --set folder="Applications/<job folder name>" --set resume="<PDF file name>" --set gaps="..." --set status="Ready to submit"
+```
+
+Use status `Needs you` with the reason in next_step when you had to stop (login, CAPTCHA, assessment, resume needs compiling in Overleaf), or `Skipped` for ineligible postings. If it reports the file is open in another program, ask the user to close tracker.xlsx in Excel, then run it again. If openpyxl is missing, install it with pip. Edit application-record.md and tracker.xlsx in place, and never delete a file in the user's folders (SKILL.md, "Files").

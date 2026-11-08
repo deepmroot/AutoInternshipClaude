@@ -143,11 +143,7 @@ Write `application-record.md` in the job folder as you fill, page by page, in th
 
 ### 7. Log it
 
-```
-python scripts/tracker.py add "<folder>/tracker.xlsx" --set company="..." --set role="..." --set term="..." --set location="..." --set deadline="..." --set posting_url="..." --set folder="Applications/<job folder name>" --set resume="<PDF file name>" --set gaps="..." --set status="Ready to submit"
-```
-
-Use status `Needs you` with the reason in next_step when you had to stop (login, CAPTCHA, assessment, resume needs compiling in Overleaf), or `Skipped` for ineligible postings. If it reports the file is open in another program, ask the user to close tracker.xlsx in Excel, then run it again. If openpyxl is missing, install it with pip.
+Add the tracker row with the command in filling.md ("Logging the tracker row"). For a posting you skip before filling (step 2), use the same command with status `Skipped`.
 
 In Submit mode, this is when you run the final check and submit (`references/submitting.md`), then set the row to `Submitted`.
 

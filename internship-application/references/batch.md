@@ -10,6 +10,10 @@ Subagents also make a batch faster, because forms in separate tabs can fill at t
 
 Use the subagent tool (Task or Agent, type `general-purpose`). Without one, run the batch yourself as in "Without subagents" at the end.
 
+**Keep this conversation small.** Don't fill forms or read form pages here; the subagents do that. Your own browser work is making the tab group and, in Submit mode, the Submit click. Measured over 2026-11-05 to 07: four batches filled in the main conversation grew to 350,000–650,000 tokens and used 41% of all the tokens re-read in those three days.
+
+**Models.** Start filling subagents with the `sonnet` model when your subagent tool lets you choose one, both in step 4 and in step 6. Filling is mostly clicks and copying answers from the profile, and Sonnet uses much less of the user's plan; subagents were about half of all usage. Tailoring subagents keep the default model, because resume quality matters. This was the user's choice on 2026-11-07.
+
 ## The run
 
 1. **Fetch the queue** in one call (SKILL.md, "Batch runs"). Skip postings the tracker already has, as in step 1. Order the rest by deadline, soonest first, then postings with no deadline, newest first, since many internships review applications as they arrive.
@@ -21,7 +25,7 @@ Use the subagent tool (Task or Agent, type `general-purpose`). Without one, run 
 5. **Hand-off**: one message for the whole batch, built from the summaries: one line per tab (company and role, and what's needed: "sign in to Workday", "attach C:\\...\\Maya_Chen_Resume_Northwind.pdf"), then the questions from every form, grouped so one answer covers every form that asks it. Before you send it, check each question against profile.json yourself (every field and `savedAnswers`, by meaning, as in filling.md): send the ones it answers straight back to their subagents (step 6) instead of asking. This way the user is interrupted once or twice for the whole batch, not once per application. In Submit mode without auto, also show the written answers the filling subagents drafted on the form (Workday's and most other sites' questions appear only there): read them from each record's "Written answers" section. The user must see them before anything is submitted, so send this message even when nothing else needs the user, and wait for their reply.
 6. **Continue**: when the user says they're done, run the filling prompt again for each application, all at once as in step 4, with what the user did and their answers. Each picks up from its application-record.md in the same tab. Repeat once more if new steps came up.
 7. **Submit** (Submit mode only): do this yourself, never in a subagent, because the mode comes from the user's own words to you, and so does the rule of one click. For each application whose summary says the check passed (or failed only on check 3, the written answers, which the user has since seen in the hand-off and accepted), switch to its tab, make sure it's on the review page, and follow "Submitting" in submitting.md: click Submit once, wait for the confirmation, then update the record's status line and the tracker row.
-8. **Report** once, one line per posting (step 8), and move processed links in jobs.txt below the `# done` line, editing the file in place. Held postings get one line together at the end ("Held, 2 per company: ...") and stay above `# done`. Save the answers the summaries list under `To save:` to profile.json without asking (`references/profile.md`), and say in one line what you saved.
+8. **Report** once, one line per posting (step 8), and move processed links in jobs.txt below the `# done` line, editing the file in place. Held postings get one line together at the end ("Held, 2 per company: ...") and stay above `# done`. Save the answers the summaries list under `To save:` to profile.json without asking (`references/profile.md`), and say in one line what you saved. End with one line telling the user to start a new conversation for the next batch: this one's context is re-read on every call.
 
 If one posting hits a wall the user can't clear in the hand-off (a broken page, a closed posting, an assessment), its row is `Needs you`; move on.
 
@@ -42,7 +46,8 @@ Fill in the `<...>` parts and send only this; the subagent reads the rest from t
 ```
 You're tailoring one internship application in a batch run by the internship-application skill.
 Read <skill>/SKILL.md, then <skill>/references/tailoring.md (and references/overleaf.md if the master is .tex),
-with your file-reading tool, not cat (long command output gets cut off).
+with your file-reading tool, not cat (long command output gets cut off). Read each file once: it stays in your
+context, and every read is paid again on each later call.
 Do SKILL.md steps 1 to 3 for this posting only (the tracker check is already done): save job-posting.md, check eligibility, create the job folder,
 tailor, check and save the resume, write changes.md, and draft any written answers into <scratch>/answers/<NN>.md.
 Don't open the application form, don't change the tracker, and don't start subagents of your own.
@@ -67,14 +72,15 @@ For a posting that comes back `skip`, you log it `Skipped` with its reason (step
 
 ```
 You're filling one internship application in a batch run by the internship-application skill.
-Read <skill>/SKILL.md and <skill>/references/filling.md (and references/submitting.md unless the mode is
-Review), with your file-reading tool, not cat (long command output gets cut off).
+Read <skill>/references/filling.md (and references/submitting.md unless the mode is Review) with your
+file-reading tool, not cat (long command output gets cut off). Read each file once: it stays in your context,
+and every read is paid again on each later call. You don't need SKILL.md; filling.md has what you need.
 Mode: <Review | Fill all | Submit>. Never click Submit in any mode: in Submit mode, fill as in Fill all,
 then run "The check before Submit" from submitting.md on the review page and report the result.
 The user <saw | didn't see (auto)> the drafted answers.
-Do SKILL.md steps 5 to 7 for this application only: fill the form in the user's browser up to the review
-page or the first thing that needs the user, add each page's fields to application-record.md as you go,
-and log the tracker row (Ready to submit, or Needs you with the reason). Don't start subagents of your own.
+For this application only: fill the form in the user's browser up to the review page or the first thing
+that needs the user, add each page's fields to application-record.md as you go, and log the tracker row
+(filling.md, "Logging the tracker row"; run scripts from <skill>). Don't start subagents of your own.
 Fill everything you can. Before you list a question, check profile.json (every field and savedAnswers, by meaning,
 as filling.md says): list only what nothing there, in the master resume or in the posting answers. Don't edit
 profile.json; put new answers under To save.
