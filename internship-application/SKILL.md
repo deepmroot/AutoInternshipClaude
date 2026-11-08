@@ -113,7 +113,7 @@ Read `references/tailoring.md` before your first tailoring in a session, and `re
 3. **Look at it**: view the page image (`image`). The layout matches the master, nothing runs past the margins, no section is empty, the bullets read naturally, and the text reaches close to the bottom. For a .docx master this is the only fill check.
 4. **Save**: copy the PDF and the tailored source (as `resume-src/`) into the job folder, the PDF named `Firstname_Lastname_Resume_Company.pdf`. First move an earlier resume PDF or resume-src/ there into `_old/`, with the date and time in their names.
 
-Write `changes.md` (format in tailoring.md), starting from the draft the check wrote beside the PDF (`draft`). Add the posting's angle, what changed and why, the requirements covered, and the gaps, each with one honest way to address it.
+Write `changes.md`: after the last check, fill the `<...>` slots in the file the check wrote beside the PDF (`changes`), as tailoring.md's "changes.md" says, then copy it into the job folder as `changes.md`.
 
 **Written answers**: for text-box questions in job-posting.md (the fetch result's `written`), draft answers now, in scratch: specific to this company and team, built on real evidence, the user's own part of group work, under 150 words unless asked for more, in the user's `writingStyle`, following any `extraRules`.
 
@@ -139,4 +139,4 @@ Role, company and deadline; where the files are; what you filled; what's left fo
 
 ## Batch runs
 
-When the user says to work through jobs.txt or gives several links, read `references/batch.md` first. Fetch the whole queue in one call: `python scripts/fetch_posting.py --jobs "<folder>/jobs.txt" --out-dir "<scratch>/postings" --tracker "<folder>/tracker.xlsx"` (or pass the links instead of `--jobs`).
+When the user says to work through jobs.txt or gives several links, read `references/batch.md` first. Tidy the queue with `python scripts/find_internships.py --folder "<folder>" --tidy`: it moves links already in the tracker (same link, job ID, or company and title, any status) or listed twice below `# done`. Don't check the queue against the tracker any other way. Fetch the whole queue in one call: `python scripts/fetch_posting.py --jobs "<folder>/jobs.txt" --out-dir "<scratch>/postings" --tracker "<folder>/tracker.xlsx"` (or pass the links instead of `--jobs`).

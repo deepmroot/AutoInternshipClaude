@@ -9,7 +9,7 @@ Use the subagent tool (Task or Agent, type `general-purpose`). Without one, foll
 
 ## The run
 
-1. **Fetch the queue** in one call (SKILL.md, "Batch runs"). Skip postings the tracker already has. Order the rest by deadline, soonest first, then those with no deadline, newest first.
+1. **Tidy and fetch the queue**, one call each (SKILL.md, "Batch runs"). Skip postings the tracker already has. Order the rest by deadline, soonest first, then those with no deadline, newest first.
 
    **At most two per company.** For each company, count its postings in this batch plus its tracker rows from the last 5 days (`in_tracker`, by `date_added`; Skipped rows don't count). Keep at most two: the titles that fit the user best (major, skills, the kind of role they asked for), the earlier deadline on a tie. For a posting the fetch couldn't read, take the company from its jobs.txt note or link. Leave the rest in jobs.txt above `# done`, adding `held: 2 per company` to the line's note if it isn't there yet. If the user asks for more from one company ("all the Northwind roles"), use their number.
 2. **Tailor**: one subagent per posting with the tailoring prompt. Start the first one alone and all the rest in your next message (all in one message if your subagent tool waits for each to finish). Postings the fetch couldn't get are read in the browser, so follow "Sharing the browser" for those. Don't read tailoring.md, overleaf.md or the master yourself.
