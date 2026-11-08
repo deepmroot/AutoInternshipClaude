@@ -80,7 +80,7 @@ Create `Applications/YYYY-MM-DD Company - Role/` (strip \ / : * ? " < > |) and s
 
 - **Class year and graduation window never stop an application.** Don't stop, skip, ask or warn about them. Add one line to changes.md with the posting's stated range. The user's real class standing and graduation date still go on the resume and the form (filling.md).
 - **Sponsorship never stops an application below senior year.** For a freshman, sophomore or junior, only note the posting's policy in changes.md. Use the profile's class standing; without one, treat the user as below senior when their graduation year is later than the internship's year. Seniors get the normal check below.
-- **Required U.S. citizenship** rules out a non-citizen at any class year.
+- **Required U.S. citizenship** rules out a non-citizen at any class year. **Required U.S. person status** (export control or ITAR: citizens, permanent residents, refugees and asylees) rules out everyone else, such as an F-1 student. A posting that only says the work *may* involve export-controlled information, or that an offer may depend on an export license, rules no one out.
 
 Check the rest against the profile: degree level and majors; enrollment and returning to school; term and dates against availability; location (mention a mismatch, don't stop); for seniors, work authorization when the posting is explicit. If one clearly rules the user out, stop and say why in a sentence or two. In auto mode, log `Skipped` with the reason in next_step and move on.
 
