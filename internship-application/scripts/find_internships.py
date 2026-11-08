@@ -5,6 +5,9 @@ Source: the data file behind https://github.com/SimplifyJobs/Summer2027-Internsh
 
 Usage:
   python find_internships.py --folder "JOB_SEARCH_FOLDER" [filters] [--append]
+  python find_internships.py --folder "JOB_SEARCH_FOLDER" --tidy
+      Moves links in jobs.txt that are already in tracker.xlsx (same link, job ID, or company and role), or listed
+      twice, below "# done". Nothing is downloaded and nothing is deleted.
 
 Filters (all optional; without them, sensible defaults come from profile.json in the folder):
   --term "Summer 2027"        internship term (default: profile's internship term, else Summer 2027)
@@ -147,6 +150,110 @@ def jobs_urls(path):
     return urls, lines
 
 
+UUID = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+# Query parameters that say where a click came from or how the page is shown, not which job it is
+TRACKING = re.compile(r'(utm_[a-z]+|gh_src|source|src|ref|referrer|lever-source|lever-origin|embed|in_iframe|mode|iis|iisn)$')
+
+
+def posting_keys(url):
+    """Every way to recognize one posting behind different links.
+
+    The same job turns up as boards.greenhouse.io/x/jobs/1 and job-boards.greenhouse.io/x/jobs/1?gh_src=...,
+    as a company page with ?gh_jid=1, as an Ashby link with and without /application?embed=true, or as a Workday
+    link whose location part differs. Comparing whole links missed those, so each link also yields its job ID.
+    """
+    m = re.match(r'https?://(?:www\.)?([^/?#\s]+)([^?#\s]*)(?:\?([^#\s]*))?', str(url or '').strip().lower())
+    if not m:
+        return set()
+    host, query = m.group(1), m.group(3) or ''
+    path = re.sub(r'/(application|apply(/[a-z]+)?)$', '', m.group(2).rstrip('/'))  # form pages of the same posting
+    # Keep the query except tracking: company pages put the job in it (open-positions/?gh_jid=1, jobs?id=2)
+    params = sorted(p for p in query.split('&') if p and not TRACKING.match(p.split('=')[0]))
+    keys = {host + path + ('?' + '&'.join(params) if params else '')}
+    gh = re.search(r'(?:^|&)gh_jid=(\d+)', query)
+    if host.endswith('greenhouse.io'):  # its embed form takes the ID as token=; elsewhere token= is something else
+        gh = re.search(r'/jobs/(\d+)', path) or re.search(r'(?:^|&)token=(\d+)', query) or gh
+    if gh:  # Greenhouse job IDs are unique across all boards, so a company page's gh_jid matches the board link
+        keys.add('greenhouse:' + gh.group(1))
+    if host.endswith(('ashbyhq.com', 'lever.co')):
+        u = re.search(UUID, path)
+        if u:
+            keys.add('uuid:' + u.group(0))
+    if 'myworkday' in host:  # myworkdayjobs.com and myworkdaysite.com
+        req = re.search(r'_([a-z0-9-]*\d[a-z0-9-]*)$', path)  # the link ends with the requisition: ..._R12345, ..._JR-004521
+        parts = path.split('/')  # myworkdaysite.com links read /[en-US/]recruiting/<tenant>/<site>/job/...
+        after = parts[parts.index('recruiting') + 1] if 'recruiting' in parts[:-1] else host
+        tenant = host.split('.')[0] if 'myworkdayjobs' in host else after
+        if req:  # requisition numbers repeat across companies, so the tenant is part of the key
+            keys.add(f'workday:{tenant}:{req.group(1)}')
+    return keys
+
+
+def name_key(company, role):
+    return f'name:{norm(company)}|{norm(role)}' if norm(company) and norm(role) else None
+
+
+def tidy(folder):
+    """Move links already in the tracker, or listed twice, below jobs.txt's '# done' line.
+
+    The top of the queue goes stale when a run forgets to move what it processed, and each batch then re-checked
+    every pick against tracker.xlsx with one-off scripts. Matching uses the link, its job ID, and the company and
+    role from the line's note (any status counts, Skipped included). Lines are moved, never deleted.
+    """
+    jobs_path = os.path.join(folder, 'jobs.txt')
+    tracker_path = os.path.join(folder, 'tracker.xlsx')
+    if not os.path.exists(jobs_path):
+        out({'ok': False, 'error': f'no jobs.txt in {folder}'}, 1)
+    tracked = {}
+    if os.path.exists(tracker_path):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import tracker  # prints its own error and exits when openpyxl is missing
+        tracker.lock_tracker(tracker_path)  # never read the workbook halfway through another call's save
+        _, ws, _ = tracker.open_book(tracker_path)
+        for row in tracker.rows(ws):
+            row = tracker.read_links(ws, row)
+            for k in posting_keys(row['posting_url']) | {name_key(row['company'], row['role'])}:
+                if k:
+                    tracked.setdefault(k, row)
+
+    lines = open(jobs_path, encoding='utf-8').read().splitlines()
+    done_at = next((i for i, l in enumerate(lines) if l.strip().lower() == '# done'), len(lines))
+    keep, moved, seen = [], [], set()
+    for line in lines[:done_at]:
+        m = re.search(r'https?://\S+', line)
+        if not m:
+            keep.append(line)
+            continue
+        rest = line[m.end():]
+        note = rest.split('#', 1)[1].strip() if '#' in rest else ''
+        parts = [p.strip() for p in note.split('|')]
+        links = posting_keys(m.group(0))
+        # The same title at the same company counts as applied (the tracker row), but two queued lines count as
+        # duplicates only by link or job ID: one title is often posted separately per city (Chicago, London).
+        named = {name_key(parts[0], parts[1])} - {None} if len(parts) > 1 else set()
+        hit = next((tracked[k] for k in links | named if k in tracked), None)
+        if hit:
+            moved.append((line, note or m.group(0), f"in tracker: {hit['id']} {hit['status']}".strip()))
+        elif links & seen:
+            moved.append((line, note or m.group(0), 'listed twice'))
+        else:
+            keep.append(line)
+        seen |= links
+
+    if moved:
+        while keep and not keep[-1].strip():
+            keep.pop()
+        merged = keep + ['', '# done'] + [l for l, _, _ in moved] + lines[done_at + 1:]
+        with open(jobs_path, 'w', encoding='utf-8') as f:  # rewrites jobs.txt in place; nothing is deleted
+            f.write('\n'.join(merged) + '\n')
+    shown = [f'{n[:80]} ({why})' for _, n, why in moved[:10]]
+    return {'ok': True, 'moved_below_done': len(moved),
+            'in_tracker': sum(1 for *_, why in moved if why.startswith('in tracker')),
+            'listed_twice': sum(1 for *_, why in moved if why == 'listed twice'),
+            'left_in_queue': sum(1 for l in keep if re.search(r'https?://', l)),
+            'moved': shown + ([f'... {len(moved) - 10} more'] if len(moved) > 10 else [])}
+
+
 def fetch():
     cache = os.path.join(tempfile.gettempdir(), 'simplify-summer2027-listings.json')
     try:
@@ -176,9 +283,12 @@ def main():
     ap.add_argument('--days', type=int)
     ap.add_argument('--limit', type=int, default=25)
     ap.add_argument('--append', action='store_true')
+    ap.add_argument('--tidy', action='store_true', help='only move queued links already in the tracker below "# done"')
     a = ap.parse_args()
 
     folder = os.path.abspath(a.folder)
+    if a.tidy:
+        out(tidy(folder))
     profile = load_profile(folder)
     defaults_used = {}
 

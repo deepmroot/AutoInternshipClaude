@@ -126,7 +126,7 @@ What the posting wants and the user doesn't have goes in the gaps list in change
 
 ## Mapping vocabulary honestly
 
-Test: would the user's professor, teammate or manager agree the new line describes what they did? A flagged term that is the posting's word for something the master shows ("REST API" for Flask endpoints) is fair: keep it and list it under "Reworded". A tool, number or responsibility the master doesn't have: remove it.
+Test: would the user's professor, teammate or manager agree the new line describes what they did? A flagged term that is the posting's word for something the master shows ("REST API" for Flask endpoints) is fair: keep it. A tool, number or responsibility the master doesn't have: remove it.
 
 | Master says | Posting asks for | Good | Not allowed |
 |---|---|---|---|
@@ -161,6 +161,8 @@ If the master uses a two-column or icon-heavy template, keep its look, and tell 
 
 ## changes.md
 
+`check_tailored.py` writes this file beside the PDF with the title, the Page line and the Reworded list filled in. Replace each `<...>` slot with Edit (the angle, what changed, the requirements covered, the ATS keywords and the gaps) and leave the rest as written. Take the keywords from the check's `keywords` lists, skills and technical terms only, not their form, benefits or place words.
+
 ```
 # Tailoring notes: Role at Company
 
@@ -175,16 +177,15 @@ If the master uses a two-column or icon-heavy template, keep its look, and tell 
 - Page: filled to the bottom. (Or: <N> lines free, because <nothing else in the master fits this posting>.)
 
 ## Reworded
-- <master bullet> → <tailored bullet> (why: <which part of the angle it shows>)
+- <master bullet> → <tailored bullet>
 - <master bullet> + <master bullet> → <merged bullet>
-(From the check's draft file: every bullet marked reworded or merged. Unchanged ones aren't listed.)
 
 ## Requirements covered
 - <requirement>: <where it shows on the resume>
 
 ## ATS keywords
-- Covered: <keywords from the posting that the resume shows>
-- Gaps: <posting keywords the user doesn't have>
+- Covered: <posting skills and terms the page shows>
+- Gaps: <posting skills the user doesn't have>
 
 ## Gaps
 - <requirement>: not on the resume. One way to address it: <cover letter line, interview example, a short project or course before the interview>.
