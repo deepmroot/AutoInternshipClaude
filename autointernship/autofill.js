@@ -21,7 +21,7 @@
 
   // Never auto-filled. These get an amber outline so you (or Claude, with your OK) handle them.
   const SENSITIVE = /\b(ssn|social security|social insurance|national insurance|tax id|passport|driver'?s? licen[cs]e|date of birth|birth ?date|dob|bank|routing|account number|credit card|card number|cvv|password)\b/;
-  const DEMOGRAPHIC = /\b(gender|sex|pronouns?|race|racial|ethnicity|ethnic|hispanic|latin[oax]|veteran|disability|disabled|sexual orientation|transgender|lgbt\w*|religion|religious|marital)\b/;
+  const DEMOGRAPHIC = /\b(gender|sex|pronouns?|races?|racial|ethnicity|ethnic|hispanic|latin[oax]|veteran|disability|disabled|sexual orientation|transgender|lgbt\w*|religion|religious|marital)\b/;
   // Demographic questions are never filled from RULES or saved answers. The voluntary self-identification
   // questions (gender, pronouns, Hispanic or Latino, race, veteran status, disability, LGBTQ+, transgender
   // identity, sexual orientation) are filled only from the answers you chose on the profile page; see
@@ -40,14 +40,16 @@
   const W0 = (f) => (p) => p.work && p.work[0] && p.work[0][f];
   const loc = (p) => (p.city && p.state ? `${p.city}, ${p.state}` : [p.city, p.country].filter(Boolean).join(', '));
   const edu0 = (p) => (p.education && p.education[0]) || {};
-  // "May 2028" → "2028" for a year-only field, "May" for a month-only field.
+  // "May 2028" → "2028" for a year-only field, "May" for a month-only field. The month is spelled out
+  // ("Jun 2029" → "June"), since month lists do (Oracle's graduation month list did) and "Jun" is too
+  // short to match "June".
   const MONTH_RE = /\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t(ember)?)?|oct(ober)?|nov(ember)?|dec(ember)?)\b/i;
   function gradValue(v, label) {
     if (!v) return v;
     const year = String(v).match(/\b(19|20)\d{2}\b/);
     const month = String(v).match(MONTH_RE);
     if (/\byear\b/.test(label) && !/\bmonth\b/.test(label)) return year ? year[0] : v;
-    if (/\bmonth\b/.test(label) && !/\byear\b/.test(label)) return month ? month[0] : null;
+    if (/\bmonth\b/.test(label) && !/\byear\b/.test(label)) return month ? MONTHS.find((m) => m.toLowerCase().startsWith(month[0].toLowerCase().slice(0, 3))) : null;
     return v;
   }
 
@@ -205,7 +207,7 @@
     { key: 'edu.startYear', re: /^start (date )?year$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'start', part: datePart },
     { key: 'edu.endMonth', re: /^end (date )?month$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'end', part: datePart },
     { key: 'edu.endYear', re: /^end (date )?year$/, max: 40, within: EDU_SECTION, idx: 'education', field: 'end', part: datePart },
-    { re: /\bgraduation (date|year|month|term|semester)\b|\byear of graduation\b|\bgrad(uation)? (year|date)\b|\bexpected (grad|graduation)\b|\bwhen (do|will) you graduate\b|\bgraduating (year|class)\b|\bclass of\b/, max: 70, kinds: ['text', 'select'], nearestDate: true, value: (p, label) => gradValue(p.expectedGraduation || edu0(p).end, label) },
+    { re: /\bgraduation (date|year|month|term|semester)\b|\byear of graduation\b|\bgrad(uation)? (year|date)\b|\bexpected (grad|graduation)\b|\bwhen (do|will) you graduate\b|\bgraduating (year|class)\b|\bclass of\b/, max: 70, kinds: ['text', 'select', 'radio'], nearestDate: true, value: (p, label) => gradValue(p.expectedGraduation || edu0(p).end, label) },
 
     // Student and internship questions
     { re: /\b(class|academic|student) (standing|level|year)\b|\b(current )?year (in|of) (school|study|college|university|program)\b|\bclassification\b|\bcurrent (school |academic )?year\b|\bschool year\b/, max: 80, kinds: YESNO_KINDS, value: (p) => p.classStanding },
@@ -488,7 +490,6 @@
   const has = (re, ...nots) => (t) => re.test(t) && !nots.some((n) => n && n.test(t));
   const NOT_HISPANIC = /\bnot hispanic\b|\bnon-?hispanic\b/;
   const HISPANIC_YES = has(/\bhispanic\b|\blatin[oax]\b/, NOT_HISPANIC, DECLINE);
-  const HISPANIC_NO = has(NOT_HISPANIC, DECLINE);
   const RACES = {
     'american-indian': /\bamerican indian\b|\balaska\w* native\b|\bnative american\b|\bindigenous\b/,
     asian: /\basian\b/,
@@ -497,6 +498,7 @@
     white: /\bwhite\b|\bcaucasian\b/,
     'two-or-more': /\btwo or more\b|\b2 or more\b|\bmulti-?racial\b|\bmore than one\b|\bmixed\b/,
   };
+  const ANY_RACE = new RegExp(Object.values(RACES).map((r) => r.source).join('|'));
   const GENDERS = {
     female: has(/\b(female|woman|women)\b/, /\btrans/, DECLINE),
     male: has(/\b(male|man|men)\b/, /\btrans/, DECLINE),
@@ -527,7 +529,7 @@
     if (/\btransgender\b|\btrans\b/.test(q)) return 'transgender';
     if (/\bsexual orientation\b|\borientation\b|\bsexuality\b/.test(q)) return 'orientation';
     if (NOT_SELF_ID.test(q)) return null;
-    if (/\b(race|racial|ethnicity|ethnic)\b/.test(q)) return 'race';
+    if (/\b(races?|racial|ethnicity|ethnic)\b/.test(q)) return 'race';
     if (/\bhispanic\b|\blatin[oax]\b/.test(q)) return 'hispanic';
     if (/\bveteran\b/.test(q)) return 'veteran';
     if (/\bdisab/.test(q)) return 'disability';
@@ -545,7 +547,8 @@
       case 'hispanic':
         if (p.hispanicLatino === 'decline') return DECLINED;
         if (p.hispanicLatino === 'yes') return [has(/^yes\b/), HISPANIC_YES];
-        if (p.hispanicLatino === 'no') return [has(/^no\b/), HISPANIC_NO];
+        // Not an option that names a race: a race list where each ends "(Not Hispanic or Latino)" isn't a No.
+        if (p.hispanicLatino === 'no') return [has(/^no\b/), has(NOT_HISPANIC, DECLINE, ANY_RACE)];
         return [];
       case 'race': {
         // Some forms ask race and Hispanic or Latino in one list (Workday's "Ethnicity", for example).
@@ -556,7 +559,10 @@
         // A single race never matches "Two or more races", and "White (Not Hispanic or Latino)" is only
         // picked if you answered No to Hispanic or Latino.
         if (race) out.push(has(race, DECLINE, p.race === 'two-or-more' ? null : RACES['two-or-more'], p.hispanicLatino === 'no' ? null : NOT_HISPANIC));
-        if (p.hispanicLatino === 'no') out.push(HISPANIC_NO); // an "Ethnicity" list with only Hispanic / Not Hispanic
+        // An "Ethnicity" list with only Hispanic / Not Hispanic. Options that name a race don't count: Oracle's
+        // "Select the races you identify with" ends every race with "(Not Hispanic or Latino)", and this used to
+        // tick all of them.
+        if (p.hispanicLatino === 'no') out.push(has(NOT_HISPANIC, DECLINE, ANY_RACE));
         if (p.race === 'decline') out.push(...DECLINED);
         return out;
       }
@@ -825,6 +831,9 @@
   // would look empty and get overwritten. Stops at the wrapper of the whole question (one with a label or
   // other fields in it).
   function comboBox(el) {
+    // Oracle's dropdown input shows the chosen value itself; its wrapper holds only the label text
+    // ("Country code"), which read as an answer already chosen.
+    if (el.classList.contains('cx-select-input')) return isVisible(el) ? el : null;
     let fallback = null;
     for (let n = el.parentElement, i = 0; n && i < 6; i++, n = n.parentElement) {
       if (controlCount(n) > 1 || n.querySelector('label')) break;
@@ -900,6 +909,8 @@
   // `before` holds the lists already showing beforehand. One left open by an earlier dropdown must not
   // count: on a live Greenhouse form, every question after the School dropdown was offered the school
   // list, found no "Yes" in it, and was left for Claude.
+  // Oracle's list is a grid (role=grid, one gridcell per option) rather than a listbox; it's only taken
+  // from the list the dropdown points to, so a table elsewhere on the page can't be read as options.
   function openOptions(el, before) {
     let lists = [];
     const id = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
@@ -907,7 +918,7 @@
     if (!lists.length) lists = shownLists().filter((l) => !(before && before.has(l)));
     const out = [];
     for (const l of lists) {
-      for (const o of l.querySelectorAll('[role="option"]')) {
+      for (const o of l.querySelectorAll(l.getAttribute('role') === 'grid' ? '[role="gridcell"]' : '[role="option"]')) {
         if (o.getAttribute('aria-disabled') === 'true') continue;
         // val stays null when there's none: an empty value means "placeholder" to isPlaceholderOpt().
         out.push({ el: o, text: o.textContent.replace(/\s+/g, ' ').trim(), val: o.getAttribute('data-value') });
@@ -948,7 +959,7 @@
     await waitFor(gone, 300);
   }
 
-  const listOf = (options) => (options && options[0] ? options[0].el.closest('[role="listbox"]') : null);
+  const listOf = (options) => (options && options[0] ? options[0].el.closest('[role="listbox"], [role="grid"]') : null);
 
   // d: { el (the input or button), box (the visible control), res (your answer) }
   // Returns { text } of the option chosen, or { options } (the choices seen) when it couldn't choose.
@@ -993,8 +1004,12 @@
     // new element is found again by its id.
     const want = norm(pick.text);
     const bare = (s) => s.replace(/\s+/g, '');
+    // A text box that shows its own value (Oracle's) still holds what was typed if the pick didn't take,
+    // and that can read like the option, so there a pick counts only once the list has closed.
+    const typedBox = d.typed && d.box === d.el && d.el.tagName === 'INPUT';
     const took = () => {
       if (d.box === d.el && !d.el.isConnected && d.el.id) { const n = byId(d.el, d.el.id); if (n) d.el = d.box = n; }
+      if (typedBox && list && list.isConnected && isVisible(list)) return false;
       const shown = shownText(d);
       return !looksEmpty(shown) && (shown.includes(want.slice(0, 24)) || (bare(shown).length >= 2 && bare(want).includes(bare(shown))));
     };
@@ -1103,6 +1118,29 @@
     } else {
       noteLeft(box, stats, raw, 'radio', { options: optionTexts(options), required: radios.some((r) => isRequired(r, raw)) });
     }
+  }
+
+  // Radio buttons drawn as buttons ("pills"): Oracle asks Yes/No and multiple-choice questions as
+  // <ul role="radiogroup" aria-label="the question"> with <button role="radio" aria-checked> choices,
+  // sponsorship and work authorization among them. Answered like any radio group; a pick counts once
+  // the page marks the button checked.
+  async function fillPillGroup(group, p, counters, stats) {
+    const pills = () => [...group.querySelectorAll('[role="radio"]')].filter((b) => b.tagName !== 'INPUT');
+    const list = pills();
+    if (!list.length || !isVisible(group) || group.hasAttribute(MARK)) return;
+    const raw = groupQuestion(list, group);
+    const options = list.map((b, i) => ({ el: b, i, text: (b.textContent || b.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(), val: null }));
+    const on = options.find((o) => o.el.getAttribute('aria-checked') === 'true');
+    if (on) { notePrefilled(stats, raw, on.text); return; } // never overwrite
+    const q = norm(raw);
+    const res = q ? answerFor(p, groupAsk(q, options), [], list[0], 'radio', counters) : null;
+    const pick = res && pickOption(options, res);
+    if (pick) {
+      press(pick.el);
+      const took = await waitFor(() => { const b = pills()[pick.i]; return b && b.getAttribute('aria-checked') === 'true'; }, 1000);
+      if (took) { noteFilled(group, stats, raw, pick.text); return; }
+    }
+    noteLeft(group, stats, raw, 'radio', { options: optionTexts(options), required: isRequired(list[0], raw) });
   }
 
   /* ---------- Checkboxes ---------- */
@@ -1219,7 +1257,8 @@
       // React-Select adds a hidden copy of each required dropdown (aria-hidden, opacity 0) so the browser's
       // own "required" check works. Nobody fills it, but counting it listed every Greenhouse dropdown twice
       // in the report, once as an unlabeled "Select..." text box.
-      if (tag === 'INPUT' && el.getAttribute('aria-hidden') === 'true') continue;
+      // Oracle puts a hidden copy beside each text area (aria-hidden, to size it); same treatment.
+      if ((tag === 'INPUT' || tag === 'TEXTAREA') && el.getAttribute('aria-hidden') === 'true') continue;
       if (tag === 'INPUT' && el.getAttribute('data-uxi-widget-type') === 'selectinput') { noteSearchList(el, stats); continue; }
 
       // Workday-style dropdown: a button that opens a list, showing the current choice as its text.
@@ -1237,8 +1276,9 @@
       }
 
       // Combobox inputs (React-Select and similar). Their real input can be tiny, hidden or read-only,
-      // so what has to be visible is the box around it.
-      const combo = tag === 'INPUT' && (el.getAttribute('role') === 'combobox'
+      // so what has to be visible is the box around it. Oracle's street box is a combobox that only
+      // suggests addresses and takes any text, so it's typed into like a text box.
+      const combo = tag === 'INPUT' && !el.classList.contains('cx-select-input--auto-suggest') && (el.getAttribute('role') === 'combobox'
         || el.getAttribute('aria-autocomplete') === 'list' || el.getAttribute('aria-haspopup') === 'listbox');
       if (!combo && (el.readOnly || !isVisible(el))) continue;
 
@@ -1275,10 +1315,15 @@
 
     for (const radios of groups.values()) fillRadioGroup(radios, p, counters, stats);
     for (const boxes of checkGroups.values()) fillCheckboxGroup(boxes, p, counters, stats);
+    for (const g of deepQuery(document, '[role="radiogroup"]')) await fillPillGroup(g, p, counters, stats);
 
     // Second pass: custom dropdowns, one at a time. Ones with no answer in your profile aren't even opened.
     for (const d of dropdowns) {
       const required = isRequired(d.el, d.raw);
+      // The site may have filled it since the first pass: Oracle fills City, County and State from the
+      // ZIP code chosen just before. Never overwritten, like any other answer already there.
+      const now = d.el.tagName === 'INPUT' ? String(d.el.value || '').trim() : '';
+      if (now || !looksEmpty(shownText(d))) { notePrefilled(stats, d.raw, now || shownRaw(d)); continue; }
       if (!d.res) { noteLeft(d.box, stats, d.raw, 'custom dropdown', { required }); continue; }
       let r;
       try { r = await fillDropdown(d); } catch (_) { r = { options: [] }; }

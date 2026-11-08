@@ -30,7 +30,7 @@ The `internship-application` skill in this repo reads your answers from `profile
 
 ## What it fills
 
-Name, contact details, address, links, education, student questions (graduation, class standing, term, dates), work history, work authorization, sponsorship, relocation, government ties, salary, start date, your saved answers and your resume. That includes text boxes, dropdowns (including Greenhouse and Workday's custom ones), radio buttons and "select all that apply" checkboxes.
+Name, contact details, address, links, education, student questions (graduation, class standing, term, dates), work history, work authorization, sponsorship, relocation, government ties, salary, start date, your saved answers and your resume. That includes text boxes, dropdowns (including Greenhouse, Workday and Oracle's custom ones), radio buttons and "select all that apply" checkboxes.
 
 - **Sponsorship** has two answers: "now or in the future" and "for the internship itself". If a question could mean either, it's filled only when both answers match.
 - **Voluntary self-identification** (gender, pronouns, Hispanic or Latino, race, veteran, disability, LGBTQ+, transgender, sexual orientation) is filled only with the choice you pick for each, including "Decline to answer". "Not set" leaves it for you.

@@ -6,9 +6,9 @@ Usage:
   python fetch_posting.py --jobs jobs.txt --out-dir DIR [--limit N] [--tracker tracker.xlsx]
 
 Supported: Greenhouse (job boards, embedded forms, and company career pages with ?gh_jid=), Ashby, Lever,
-Workday (myworkdayjobs.com and myworkdaysite.com), SmartRecruiters and Rippling. On 2026-10-30 they hosted
-68% of the open SimplifyJobs internship listings. Anything else, or a lookup that fails, is reported so that
-posting can be opened in the browser as before.
+Workday (myworkdayjobs.com and myworkdaysite.com), SmartRecruiters, Rippling and Oracle (oraclecloud.com). On
+2026-10-30 the first six hosted 68% of the open SimplifyJobs internship listings; Oracle had 5.8% on 2026-11-07.
+Anything else, or a lookup that fails, is reported so that posting can be opened in the browser as before.
 
 For each posting it writes "DIR/NN Company - Role.md" in the job-posting.md format: URL, deadline, location,
 pay and posted date, then the description. Where the site publishes its form (Greenhouse, Ashby) it adds the
@@ -56,7 +56,7 @@ class Blocked(Failed):
 
 # What to allow so every supported site works (see the "hint" in the output). Workday adds one host per company.
 ALLOW = ['boards.greenhouse.io', 'job-boards.greenhouse.io', 'boards-api.greenhouse.io', 'jobs.ashbyhq.com', 'api.ashbyhq.com',
-         'api.lever.co', 'api.smartrecruiters.com', 'ats.rippling.com', '*.myworkdayjobs.com', '*.myworkdaysite.com']
+         'api.lever.co', 'api.smartrecruiters.com', 'ats.rippling.com', '*.myworkdayjobs.com', '*.myworkdaysite.com', '*.oraclecloud.com']
 
 
 # Being a polite client is what keeps these lookups from being blocked: say what we are, never send more than
@@ -307,6 +307,49 @@ def workday(p):
             'questions': [], 'self_id': [], 'consent': [], 'form_note': note}
 
 
+_oracle_sites = {}  # (host, site) -> company name, so a queue with many postings from one site asks once
+
+
+def oracle_company(p):
+    """Oracle's job data has no company name. The career site's page title has it, padded with words like
+    "Candidate Experience Site" ("DTCC Candidate Experience Site", "Cummins Talent Acquisition", "Macy\\'s")."""
+    key = (p['host'], p['site'])
+    if key not in _oracle_sites:
+        name = ''
+        try:
+            _, page = get(f"https://{p['host']}/hcmUI/CandidateExperience/{p['lang']}/sites/{p['site']}/", raw=True, headers={'Accept': 'text/html'})
+            m = re.search(r'<title>([^<]*)', page)
+            name = html.unescape(m.group(1)).replace("\\'", "'") if m else ''
+        except Failed:
+            pass
+        name = re.sub(r'(?i)^(careers?|jobs?) (at|with) ', '', name.strip())  # "Careers at Northwind"
+        name = re.sub(r'(?i)\s*[-|:]?\s*\b(candidate experience( site| page)?|talent acquisition|career site|careers?( site| page)?|jobs?( search| site)?|'
+                      r'external|opportunities|join us)\b.*$', '', name).strip(' -|:')
+        name = re.sub(r'(?i)\s+(united states|usa|us|global)$', '', name)
+        # Not tidy_company(): its Workday code rule would drop the "GM" of "GM Financial".
+        _oracle_sites[key] = re.sub(CORP_SUFFIX, '', name, flags=re.I).strip(' ,')
+    return _oracle_sites[key]
+
+
+def oracle(p):
+    d = get(f"https://{p['host']}/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true"
+            f"&finder=ById;Id=%22{p['id']}%22,siteNumber={p['site']}")
+    items = d.get('items') or []
+    if not items:
+        raise Failed('not found: the posting may have closed. Open it in the browser to check.')
+    i = items[0]
+    locations = [i.get('PrimaryLocation')] + [l.get('Name') for l in i.get('secondaryLocations') or [] if isinstance(l, dict)]
+    how = '; '.join(x for x in (i.get('WorkplaceType'), i.get('JobSchedule')) if x)
+    parts = [md(i.get('ExternalDescriptionStr'))]
+    parts += [f'### {title}\n{md(i.get(key))}' for key, title in (('ExternalResponsibilitiesStr', 'Responsibilities'), ('ExternalQualificationsStr', 'Qualifications'),
+                                                                 ('CorporateDescriptionStr', 'About the company')) if i.get(key)]
+    return {'company': oracle_company(p) or p['host'].split('.')[0], 'company_from_url': True, 'role': i.get('Title'),
+            'location': '; '.join(l for l in locations if l) + (f' ({how})' if how else ''),
+            'deadline': f"{day(i['ExternalPostedEndDate'])} (when the posting closes)" if i.get('ExternalPostedEndDate') else '', 'pay': '',
+            'posted': day(i.get('ExternalPostedStartDate')), 'description': '\n\n'.join(x for x in parts if x),
+            'questions': [], 'self_id': [], 'consent': [], 'form_note': 'Oracle shows its application questions only in the form, so none are listed here.'}
+
+
 def smartrecruiters(p):
     d = get(f"https://api.smartrecruiters.com/v1/companies/{p['company']}/postings/{p['id']}")
     loc = d.get('location') or {}
@@ -381,11 +424,14 @@ def parse(url):
     if host == 'ats.rippling.com':
         m = re.match(r'/(?:[a-z]{2}-[A-Z]{2}/)?([^/]+)/jobs/' + uuid, path)
         return 'rippling', m and {'board': m.group(1), 'url': url.strip()}
+    if host.endswith('.oraclecloud.com'):
+        m = re.match(r'/hcmUI/CandidateExperience/([^/]+)/sites/([^/]+)/(?:job|requisitions/preview)/(\d+)', path)
+        return 'oracle', m and {'host': host, 'lang': m.group(1), 'site': m.group(2), 'id': m.group(3)}
     return None, None
 
 
 SITES = {'greenhouse': greenhouse, 'ashby': ashby, 'lever': lever, 'workday': workday,
-         'smartrecruiters': smartrecruiters, 'rippling': rippling}
+         'smartrecruiters': smartrecruiters, 'rippling': rippling, 'oracle': oracle}
 
 
 def as_markdown(url, site, p):
@@ -515,7 +561,7 @@ def main():
     out = {'ok': not failed, 'fetched': len(results) - failed, 'need_browser': failed, 'postings': results}
     if blocked:
         # Said once, so the user can fix it in a minute instead of every posting costing a browser read.
-        extra = sorted(h for h in blocked if h not in ALLOW and not h.endswith(('.myworkdayjobs.com', '.myworkdaysite.com')))
+        extra = sorted(h for h in blocked if h not in ALLOW and not h.endswith(('.myworkdayjobs.com', '.myworkdaysite.com', '.oraclecloud.com')))
         out['network_blocked'] = sorted(blocked)
         out['hint'] = ("This computer's network blocks the job sites, so these postings need the browser. To fetch them "
                        "without it, allow these domains in the Claude app's settings for code execution (network access): "

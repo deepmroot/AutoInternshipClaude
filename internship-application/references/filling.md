@@ -54,7 +54,7 @@ Open the form. Accept "Autofill from resume" if offered (Workday), then check th
    The first line ends "Profile: N saved answers.", the extension's count. If N is lower than the number of `savedAnswers` in profile.json, the extension is behind: tell the user to restore it (`references/profile.md`). Filling subagents in a batch give N on their `Extension answers:` line instead.
 3. Skim Filled and Already filled against the profile and resume. Fix only what's clearly wrong, and mention it.
 4. Work through the Left list only, with the rules below. The resume upload is always on it.
-5. On multi-step forms (Workday), press the button first on every step, Application Questions and Voluntary Disclosures included, then finish the step by hand, click **Save and Continue** (never Submit), and wait for the next step. Repeat until the review page.
+5. On multi-step forms (Workday, Oracle), press the button first on every step, Workday's Application Questions and Voluntary Disclosures included, then finish the step by hand, click the step button (**Save and Continue**, **Next**; never Submit), and wait for the next step. Repeat until the review page.
 
 **Without it** (no tab, the built-in browser, or the panel says it couldn't fill), fill the whole form from the profile and the master resume.
 
