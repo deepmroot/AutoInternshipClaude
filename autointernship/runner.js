@@ -17,10 +17,11 @@ async function runFill(tabId, opts = {}) {
       sum.filled += v.filled;
       sum.left += v.left;
       if (v.resume) sum.resume = v.resume;
+      sum.saved = Math.max(sum.saved, v.saved || 0); // the same profile in every frame
       sum.fields.push(...(v.fields || []));
       sum.prefilled.push(...(v.prefilled || []));
       sum.todo.push(...(v.todo || []));
     }
     return sum;
-  }, { filled: 0, left: 0, resume: null, fields: [], prefilled: [], todo: [] });
+  }, { filled: 0, left: 0, resume: null, fields: [], prefilled: [], todo: [], saved: 0 });
 }
