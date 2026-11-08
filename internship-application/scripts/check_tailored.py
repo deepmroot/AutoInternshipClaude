@@ -16,11 +16,12 @@ TAILORED is the tailored source in scratch space (.tex or .docx). In order, it r
   its template for ATS problems. Do it the first time in a session.
 
 Why one command: running the four scripts one by one took five tool calls per try, and each printed every bullet
-and keyword again, though only the problems change what to do next. The full before -> after pairs and keyword
-lists go to a draft beside the PDF (NAME-changes-draft.md), read once when writing changes.md.
+and keyword again, though only the problems change what to do next. The full before -> after pairs go into
+changes.md itself (NAME-changes.md beside the PDF), in its final format with <...> slots for the parts only Claude
+can write, so they're never retyped. The posting's keyword lists are printed under "keywords" for those slots.
 
 Prints one JSON object: "fix" (change before saving), "review" (change each one, or say why not in changes.md),
-short numbers per check, and the paths of the PDF, the page image and the draft. The four scripts still work on
+short numbers per check, and the paths of the PDF, the page image and the changes file. The four scripts still work on
 their own. Exit codes: 0 nothing to fix or review, 2 something under fix or review, or the page is too long,
 1 bad input or compile error, 3 no LaTeX here (the source checks still ran; compile in Overleaf).
 """
@@ -74,24 +75,59 @@ def short(s, n=90):
 
 def listing(items, n=15):
     shown = ', '.join(items[:n])
-    return shown + (f' (+{len(items) - n} more in the draft)' if len(items) > n else '')
+    return shown + (f' (+{len(items) - n} more)' if len(items) > n else '')
 
 
-def write_draft(path, bullets, keywords):
-    """The parts of changes.md a script can fill in: before -> after pairs and keyword lists."""
-    lines = ['<!-- Draft from check_tailored.py for changes.md. Add the "why" to each Reworded line. -->', '', '## Reworded']
+def posting_title(posting):
+    """'Role at Company' from job-posting.md, whose first line fetch_posting.py writes as '# Role — Company'."""
+    try:
+        with open(posting, encoding='utf-8') as f:
+            m = re.match(r'#\s+(.+?)\s+—\s+(.+?)\s*$', f.readline())
+        if m:
+            return f'{m.group(1)} at {m.group(2)}'
+    except (OSError, TypeError):
+        pass
+    return '<Role> at <Company>'
+
+
+def write_changes(path, bullets, page, posting):
+    """changes.md with everything a script can fill in, and <...> slots for what only Claude can write.
+
+    Claude used to read a draft of the pairs and keywords and retype all of it into changes.md (2-3k output tokens
+    per resume, the priciest kind). Now it copies this file into the job folder and edits only the slots: Angle,
+    What changed, Requirements covered, ATS keywords, Gaps, and the reason on the Page line when lines are left free.
+    """
+    free = (page or {}).get('free_lines')
+    if free is None:
+        page_line = '- Page: <filled to the bottom, or N lines free because nothing else in the master fits this posting>.'
+    elif free < 2:  # the build's own threshold for "space at the bottom"
+        page_line = '- Page: filled to the bottom.'
+    else:
+        page_line = f'- Page: {free} lines free, because <nothing else in the master fits this posting>.'
+    lines = [f'# Tailoring notes: {posting_title(posting)}', '',
+             '## Angle', '<the three to five things this posting judges on, in its own words>', '',
+             '## What changed',
+             '- Coursework: led with <courses> (posting asks for <requirement>).',
+             '- Projects: moved <project> to the top; dropped <project> for space.',
+             '- Experience: kept <entries>; cut <entry> to <N> bullets (or dropped it), because <reason>.',
+             '- Skills: put <tools> first.',
+             page_line, '', '## Reworded']
+    pairs = []
     for b in bullets or []:
         if b['verdict'] == 'reworded':
-            lines.append(f"- {b['closest_master']} → {b['tailored']}")
+            pairs.append(f"- {b['closest_master']} → {b['tailored']}")
         elif b['verdict'] == 'merged':
-            lines.append(f"- {b['closest_master']} + {b['also_from']} → {b['tailored']}")
+            pairs.append(f"- {b['closest_master']} + {b['also_from']} → {b['tailored']}")
+    lines += pairs or ['- none: every bullet is word for word from the master.']
     orphans = [b['tailored'] for b in bullets or [] if b['verdict'] == 'no_source']
     if orphans:
         lines += ['', '## No source in the master (trace every fact, or the bullet goes)'] + [f'- {t}' for t in orphans]
-    if keywords:
-        lines += ['', '## ATS keywords', '- Covered: ' + ', '.join(keywords['in_resume']),
-                  '- In the master, not on this page: ' + ', '.join(keywords['in_master_not_resume']),
-                  '- Gaps: ' + ', '.join(keywords['not_in_master'])]
+    # The keyword lines stay slots: the raw lists (printed by the check) mix skills with form, benefits and place
+    # words ("CA", "Townsend St", "Greenhouse"), and replacing a raw line with Edit would mean retyping all of it.
+    lines += ['', '## Requirements covered', '- <requirement>: <where it shows on the resume>', '',
+              '## ATS keywords', '- Covered: <posting skills and terms the page shows>', '- Gaps: <posting skills the user doesn\'t have>',
+              '', '## Gaps',
+              '- <requirement>: not on the resume. One way to address it: <cover letter line, interview example, a short project or course>.']
     with open(path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')
 
@@ -232,11 +268,11 @@ def main():
             review += ats['notes']
             keywords = ats.get('keywords')
             if keywords:
-                result['keywords'] = {'covered': len(keywords['in_resume']), 'in_master_not_page': len(keywords['in_master_not_resume']),
-                                      'gaps': len(keywords['not_in_master'])}
+                # The raw lists, for the ATS keywords lines in changes.md (skills only; the lists include form words)
+                result['keywords'] = {'covered': keywords['in_resume'], 'gaps': keywords['not_in_master']}
                 if keywords['in_master_not_resume']:
                     review.append('In the master but not on this page (bring back the ones that matter, where they fit): '
-                                  + listing(keywords['in_master_not_resume']))
+                                  + listing(keywords['in_master_not_resume'], 40))
 
     if a.check_template:
         if os.path.splitext(a.master)[1].lower() == '.tex' and not no_latex:
@@ -250,9 +286,8 @@ def main():
 
     # 5. Files to look at
     stem = os.path.splitext(pdf or a.out)[0]
-    if bullets or keywords:
-        result['draft'] = stem + '-changes-draft.md'
-        write_draft(result['draft'], bullets, keywords)
+    result['changes'] = stem + '-changes.md'
+    write_changes(result['changes'], bullets, result.get('page'), a.posting)
     if pdf:
         result['pdf'] = pdf
         result['image'] = render_page1(pdf)
