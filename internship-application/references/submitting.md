@@ -27,11 +27,11 @@ A saved answer in the profile comes first. Otherwise answer truthfully from wher
 
 ### Questions the profile doesn't answer
 
-Collect them; never guess. In past applications these were visa questions worded differently from the profile's two ("Are you eligible for a TN, H-1B1, E-3 or F-1 EAD visa?", "Are you authorized to work without restrictions in the country where this job is?"), text-message consent, SAT or ACT scores, past U.S. government employment, conflicts of interest and the name in a native language.
+First check profile.json as in filling.md ("Check the profile before you leave or ask anything"). Most questions from past applications are saved answers by now: visa questions worded differently from the profile's two, text messages, SAT scores, relatives at the company, conflicts of interest, the name in a native language. Collect only what's left; never guess.
 
 - Fill everything else, and note each one with the form and the question's exact wording.
 - Ask them all in one message, at the same time as the sign-in and upload hand-offs (in a batch, the one hand-off for the whole batch). Group them by question, so one answer covers every form that asks it.
-- Enter the answers. Then offer to save each reusable one to profile.json (see `references/profile.md`), so the extension fills it next time and nobody has to ask again.
+- Enter the answers, and save each reusable one to profile.json without asking (see `references/profile.md`), so the extension fills it next time and nobody has to ask again.
 - Sponsorship and self-identification still come only from the profile. A required one the profile doesn't cover goes on this list; it's never worked out from anything else.
 
 ### Still the user's, in every mode

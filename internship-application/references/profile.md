@@ -44,6 +44,6 @@ Only when the folder has no profile.json:
 
 ## Saving answers for next time
 
-When the user gives you an answer the profile didn't have and it will come up again (a standard question, or a common one like "How did you hear about us?"), ask once: "Save this to your profile for next time?" On yes, set the matching field. If no field fits, add `{ "match": "<short phrase from the question>", "answer": "<their answer>" }` to `savedAnswers`. Don't save answers written for one company, like "Why do you want to work here?".
+When the user gives you an answer the profile didn't have and it will come up again (a standard question, or a common one like "How did you hear about us?"), save it without asking (the user chose this on 2026-11-07, since a question about saving was one more interruption), and say in one line what you saved. Set the matching field. If no field fits, add `{ "match": "<short phrase from the question>", "answer": "<their answer>" }` to `savedAnswers`. Don't save answers written for one company, like "Why do you want to work here?".
 
 After any change to profile.json, remind the user once per session to **Restore from backup** in the extension. If the user says they changed answers in the extension instead, ask them to click **Download backup** and put the new profile.json in the job-search folder.
