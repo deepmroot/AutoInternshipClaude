@@ -2,6 +2,8 @@
 
 Make one page that shows, to a recruiter skimming and to an applicant tracking system (ATS) searching keywords, that the student has worked with what the internship needs. Choose, order and rewrite; never add facts. Every line must be something the student can discuss in an interview.
 
+Work only from the master resume: never open resumes, resume-src or changes.md in other job folders.
+
 ## Three passes
 
 1. **Read the posting for its angle.** Write down (for yourself) the three to five things this team will judge the user on, with the posting's exact words for each. For example: "backend services in Java, SQL, testing, working with product teams".
