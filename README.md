@@ -39,3 +39,7 @@ Claude adds `Applications/` (one folder per application) and `tracker.xlsx` to y
 The skills you uploaded to the Claude app already work in its **Code** tab. For the command line, copy both skill folders into `~/.claude/skills/`. Then install Python 3 with `pip install openpyxl pypdf`, and [Tectonic](https://tectonic-typesetting.github.io/) so Claude can build Overleaf resumes itself. Tectonic is one file: put it on your PATH and restart Claude. Without it, you compile resumes in Overleaf. Poppler (better PDF checks) is optional.
 
 In auto mode, Claude Code's safety check can block Claude from ticking agreement boxes or entering your profile on job sites. To allow it, add an `autoMode` rule to `~/.claude/settings.json` ([how](https://code.claude.com/docs/en/auto-mode-config)). Claude can't add the rule for you: auto mode doesn't let it loosen its own permissions.
+
+## License
+
+[MIT](LICENSE). This is a personal project, not affiliated with or endorsed by Anthropic.

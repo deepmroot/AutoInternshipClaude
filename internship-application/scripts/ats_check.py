@@ -63,7 +63,7 @@ NOT_TERMS = {'we', 'you', 'our', 'the', 'this', 'job', 'intern', 'internship', '
 
 MONTH = r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?|spring|summer|fall|autumn|winter'
 WHEN = rf'((expected|anticipated|since)\s+)?(({MONTH})\s+)?\d{{4}}'
-# What a heading line pushes to the right margin: "May 2025 - Present", "Expected Jun 2029", "Stanford, CA".
+# What a heading line pushes to the right margin: "May 2025 - Present", "Expected Jun 2029", "Seattle, WA".
 DATE_OR_PLACE = re.compile(rf'^({WHEN}(\s*(-|–|—|to)\s*({WHEN}|present|current|now))?'
                            r"|[A-Z][A-Za-z.'\- ]*,\s*[A-Z][A-Za-z.\- ]*|remote)$", re.I)
 
