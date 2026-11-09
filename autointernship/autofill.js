@@ -773,7 +773,7 @@
   // often split a two-word first name ("Mei Ling Chen" → first "Mei", last "Ling Chen"), and the fill never
   // overwrites, so the report flags these for Claude rather than leaving it to compare every value. Only
   // names: other values (phone formats, school names) differ harmlessly too often.
-  // "Phùng" and "PHUNG" match "Phung". đ is its own letter, not d plus an accent, so it's swapped by hand.
+  // "Nguyễn" and "NGUYEN" match "Nguyen". đ is its own letter, not d plus an accent, so it's swapped by hand.
   const fold = (s) => norm(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
   function notePrefilled(stats, label, value, expected) {
     const item = { label: tidy(label), value: String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 500) };
