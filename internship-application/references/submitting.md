@@ -4,7 +4,7 @@ Read this at the start of a request in Fill all or Submit mode. It adds to `refe
 
 ## Fill all: everything except Submit
 
-Leave the form with only the Submit button to click.
+Leave the form with only the Submit button to click. On iCIMS, that's the final form of its last step (filling.md, "iCIMS has no review page").
 
 ### Consent, acknowledgement and certification boxes
 
@@ -42,7 +42,7 @@ Per application: fill as in Fill all, write application-record.md and log the ro
 
 ### The check before Submit
 
-On the last page before Submit (Workday's review page), all of these must hold:
+On the last page before Submit (Workday's review page, iCIMS's final form), all of these must hold:
 
 1. Every required field is filled, and the page shows no error or warning.
 2. The attached resume is this job's tailored PDF (its file name shows on the page).

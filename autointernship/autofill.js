@@ -373,6 +373,17 @@
     return hints.some((h) => hre.test(h));
   }
 
+  const DEGREE_ABBR = [
+    // Each way round: a profile saying "BS" picks "Bachelor of Science", not the first "Bachelor of ..." in the list.
+    [/\bbachelor'?s? of science\b|^b\.?\s?sc?\.?$/, ['bs', 'b.s.', 'bsc', 'b.sc.', 'bachelor of science']],
+    [/\bbachelor'?s? of arts\b|^b\.?\s?a\.?$/, ['ba', 'b.a.', 'bachelor of arts']],
+    [/\bbachelor'?s? of engineering\b|^b\.?\s?eng\.?$/, ['beng', 'b.eng.', 'bachelor of engineering']],
+    [/\bmaster'?s? of science\b|^m\.?\s?sc?\.?$/, ['ms', 'm.s.', 'msc', 'm.sc.', 'master of science']],
+    [/\bmaster'?s? of arts\b|^m\.?\s?a\.?$/, ['ma', 'm.a.', 'master of arts']],
+    [/\bmaster'?s? of engineering\b|^m\.?\s?eng\.?$/, ['meng', 'm.eng.', 'master of engineering']],
+    [/\bdoctor of philosophy\b|\bph\.?\s?d\b/, ['phd', 'ph.d.', 'doctor of philosophy']],
+  ];
+
   function variants(value, degree) {
     const v = norm(value);
     const out = new Set([v]);
@@ -386,6 +397,9 @@
       if (/\bmba\b/.test(v)) out.add('mba');
       if (/ph\.?d|doctor/.test(v)) ['doctorate', 'phd', 'doctor'].forEach((x) => out.add(x));
       if (/associate/.test(v)) out.add('associate');
+      // Some lists offer only abbreviations (Salesforce's Workday Degree list: GED | HS | AA | BA | BS | MA | MS | MAS),
+      // and "Bachelor of Science" shares no word with "BS"; Claude spent about ten calls picking it by hand.
+      for (const [re, abbr] of DEGREE_ABBR) if (re.test(v)) abbr.forEach((x) => out.add(x));
     }
     return [...out];
   }

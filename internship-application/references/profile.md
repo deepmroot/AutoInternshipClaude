@@ -35,7 +35,7 @@ Only when the folder has no profile.json:
   - `lgbtq`: `yes`, `no`, `decline`
   - `transgender`: `yes`, `no`, `decline`
   - `sexualOrientation`: `straight`, `gay`, `lesbian`, `bisexual`, `pansexual`, `asexual`, `queer`, `decline`
-- Text as the user would write it: `classStanding` ("Sophomore"), `expectedGraduation` ("May 2028"), `internshipTerm` ("Summer 2027"), `availableFrom` and `availableUntil` ("June 1, 2027"), `workAuthDetails` (only for written answers, for example "F-1 student, eligible for CPT"), `salary`, `startDate`, `workPreference`, `summary`, `skills`, `yearsExperience`, `writingStyle`, and `extraRules` (one rule per line).
+- Text as the user would write it: `classStanding` ("Sophomore"), `expectedGraduation` ("May 2028"), `internshipTerm` ("Summer 2027"), `availableFrom` and `availableUntil` ("June 1, 2027"), `workAuthDetails` (for written answers and the eligibility screen in fetch_posting.py, for example "F-1 student, eligible for CPT"), `salary`, `startDate`, `workPreference`, `summary`, `skills`, `yearsExperience`, `writingStyle`, and `extraRules` (one rule per line).
 - List entries:
   - `education`: `{ "school", "degree", "field", "minor", "start", "end", "gpa" }`, GPA exactly as written.
   - `work`: `{ "title", "company", "location", "start", "end", "highlights" }`, one highlight per line.

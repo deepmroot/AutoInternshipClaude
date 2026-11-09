@@ -6,8 +6,9 @@ Source: the data file behind https://github.com/SimplifyJobs/Summer2027-Internsh
 Usage:
   python find_internships.py --folder "JOB_SEARCH_FOLDER" [filters] [--append]
   python find_internships.py --folder "JOB_SEARCH_FOLDER" --tidy
-      Moves links in jobs.txt that are already in tracker.xlsx (same link, job ID, or company and role), or listed
-      twice, below "# done". Nothing is downloaded and nothing is deleted.
+      Moves links in jobs.txt that are already in tracker.xlsx (same link, job ID, or company and role), listed
+      twice, or (for a U.S. profile) outside the U.S. by their note's location, below "# done". Nothing is
+      downloaded and nothing is deleted.
 
 Filters (all optional; without them, sensible defaults come from profile.json in the folder):
   --term "Summer 2027"        internship term (default: profile's internship term, else Summer 2027)
@@ -24,6 +25,7 @@ Filters (all optional; without them, sensible defaults come from profile.json in
   --days 30                   only listings posted in the last N days
   --limit 25                  at most N results, newest first
   --append                    add the results to jobs.txt (above any "# done" line), one link per line with a note
+  --include-abroad            keep listings outside the U.S. (a U.S. profile drops them: the user's call, 2026-11-08)
 
 Skips LinkedIn links (LinkedIn prohibits automated tools) and listings that are closed, already in tracker.xlsx (same company and role) or already in jobs.txt.
 Prints one JSON object. Exit codes: 0 ok, 1 bad input, 6 couldn't download the list (network).
@@ -125,6 +127,45 @@ def location_match(locations, prefs):
     return False
 
 
+STATE_CODES = {'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME',
+               'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA',
+               'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC', 'PR'}
+US_PLACE = re.compile(r'\b(united states|usa|u\.s\.a?|nyc|new york|san francisco|sf|bay area|silicon valley|seattle|boston|chicago|'
+                      r'austin|los angeles|washington,? d\.?c\.?|alabama|alaska|arizona|arkansas|california|colorado|connecticut|'
+                      r'delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|'
+                      r'massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|'
+                      r'new mexico|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|'
+                      r'south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b|\bLA\b', re.I)
+ABROAD = re.compile(r'\b(canada|united kingdom|uk|england|scotland|wales|ireland|germany|france|india|china|singapore|japan|korea|'
+                    r'taiwan|hong kong|israel|netherlands|spain|portugal|poland|mexico|brazil|argentina|chile|colombia|australia|'
+                    r'new zealand|switzerland|sweden|norway|denmark|finland|italy|austria|belgium|czechia|czech republic|romania|'
+                    r'hungary|greece|turkey|vietnam|philippines|malaysia|indonesia|thailand|uae|united arab emirates|saudi arabia|'
+                    r'egypt|nigeria|kenya|south africa|luxembourg|estonia|lithuania|ukraine|serbia|bulgaria|croatia|pakistan|qatar|'
+                    r'costa rica|peru|london|toronto|vancouver|montreal|montréal|ottawa|waterloo|markham|calgary|burnaby|mississauga|'
+                    r'dublin|berlin|munich|paris|amsterdam|zurich|zürich|geneva|tokyo|seoul|bangalore|bengaluru|hyderabad|pune|'
+                    r'mumbai|chennai|gurgaon|gurugram|noida|tel aviv|sydney|melbourne|shanghai|beijing|shenzhen|taipei|warsaw|'
+                    r'krakow|kraków|prague|madrid|barcelona|lisbon|stockholm|copenhagen|oslo|helsinki|milan|vienna|brussels|'
+                    r'edinburgh|manchester|mexico city|são paulo|sao paulo|manila|kuala lumpur|bangkok|dubai)\b', re.I)
+PROVINCE = re.compile(r',\s*(ON|BC|QC|AB|MB|SK|NS|NB|NL|PE)\b')
+
+
+def home_is_us(profile):
+    return norm(profile.get('authCountry') or profile.get('country')) in ('united states', 'usa', 'us', 'united states of america')
+
+
+def outside_us(places):
+    """True when the locations name only places outside the U.S. ("London, UK, Edinburgh, UK"), False when one is in
+    the U.S., None when they don't say ("Remote"). SimplifyJobs writes U.S. places as "City, ST", "NYC" or "SF"."""
+    text = ', '.join(places) if isinstance(places, (list, tuple)) else str(places or '')
+    canada = re.search(r'\bcanada\b', text, re.I) or PROVINCE.search(text)
+    codes = {c for c in re.findall(r',\s*([A-Z]{2})\b', text) if c in STATE_CODES and not (c == 'CA' and canada)}
+    if codes or US_PLACE.search(text) or re.search(r'\bUS\b', text):
+        return False
+    if ABROAD.search(text) or canada:
+        return True
+    return None
+
+
 def tracker_keys(folder):
     path = os.path.join(folder, 'tracker.xlsx')
     keys = set()
@@ -219,6 +260,7 @@ def tidy(folder):
     lines = open(jobs_path, encoding='utf-8').read().splitlines()
     done_at = next((i for i, l in enumerate(lines) if l.strip().lower() == '# done'), len(lines))
     keep, moved, seen = [], [], set()
+    us_only = home_is_us(load_profile(folder))  # the user's call (2026-11-08): batches skip jobs outside the U.S.
     for line in lines[:done_at]:
         m = re.search(r'https?://\S+', line)
         if not m:
@@ -236,6 +278,8 @@ def tidy(folder):
             moved.append((line, note or m.group(0), f"in tracker: {hit['id']} {hit['status']}".strip()))
         elif links & seen:
             moved.append((line, note or m.group(0), 'listed twice'))
+        elif us_only and len(parts) > 2 and outside_us(parts[2]):
+            moved.append((line.rstrip() + ' | not in the U.S.', note, 'not in the U.S.'))
         else:
             keep.append(line)
         seen |= links
@@ -250,6 +294,7 @@ def tidy(folder):
     return {'ok': True, 'moved_below_done': len(moved),
             'in_tracker': sum(1 for *_, why in moved if why.startswith('in tracker')),
             'listed_twice': sum(1 for *_, why in moved if why == 'listed twice'),
+            'not_in_us': sum(1 for *_, why in moved if why == 'not in the U.S.'),
             'left_in_queue': sum(1 for l in keep if re.search(r'https?://', l)),
             'moved': shown + ([f'... {len(moved) - 10} more'] if len(moved) > 10 else [])}
 
@@ -283,6 +328,7 @@ def main():
     ap.add_argument('--days', type=int)
     ap.add_argument('--limit', type=int, default=25)
     ap.add_argument('--append', action='store_true')
+    ap.add_argument('--include-abroad', action='store_true', help='keep listings outside the U.S. (dropped by default for a U.S. profile)')
     ap.add_argument('--tidy', action='store_true', help='only move queued links already in the tracker below "# done"')
     a = ap.parse_args()
 
@@ -329,8 +375,9 @@ def main():
     kw = [norm(k) for k in a.keyword]
     ex = [norm(k) for k in a.exclude_keyword]
 
-    skipped = {'linkedin_link': 0, 'closed': 0, 'term': 0, 'category': 0, 'location': 0, 'keyword': 0, 'degree': 0,
+    skipped = {'linkedin_link': 0, 'closed': 0, 'term': 0, 'category': 0, 'location': 0, 'outside_us': 0, 'keyword': 0, 'degree': 0,
                'sponsorship': 0, 'too_old': 0, 'already_tracked': 0, 'already_in_jobs_txt': 0}
+    us_only = home_is_us(profile) and not a.include_abroad
     results = []
     for x in data:
         if 'linkedin.com' in (x.get('url') or '').lower():  # never queue LinkedIn; apply on the company's site
@@ -343,6 +390,8 @@ def main():
             skipped['category'] += 1; continue
         if not location_match(x.get('locations') or [], a.location):
             skipped['location'] += 1; continue
+        if us_only and outside_us(x.get('locations') or []):
+            skipped['outside_us'] += 1; continue
         title = norm(x.get('title'))
         if (kw and not any(k in title for k in kw)) or any(k in title for k in ex):
             skipped['keyword'] += 1; continue

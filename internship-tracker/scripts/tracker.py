@@ -3,7 +3,8 @@
 
 Usage:
   python tracker.py add     FILE --set company=Acme --set role="Data Intern" [--set key=value ...]
-  python tracker.py update  FILE --id A0003 --set status=Submitted [--set key=value ...]
+                                 (--company, --role and --status work too)
+  python tracker.py update  FILE --id A0003 --set status=Submitted [--set key=value ...]   (or --status Submitted)
   python tracker.py find    FILE [--id A0003] [--company acme] [--role data] [--status Submitted]
   python tracker.py summary FILE
 
@@ -265,6 +266,13 @@ def main():
     ap.add_argument('--role')
     ap.add_argument('--status')
     a = ap.parse_args()
+    if a.command in ('add', 'update'):
+        # These are find's filters, but a batch's main conversation wrote `add --company X --role Y --status Skipped`
+        # (2026-11-08) and got "add needs at least company and role". On add they now mean --set company=... (and
+        # --status on update); an explicit --set comes later, so it wins.
+        given = [f'{k}={v}' for k, v in (('company', a.company), ('role', a.role), ('status', a.status))
+                 if v is not None and (a.command == 'add' or k == 'status')]
+        a.set = given + (a.set or [])
 
     path = os.path.abspath(a.file)
     base_dir = os.path.dirname(path)
