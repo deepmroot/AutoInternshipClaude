@@ -28,11 +28,21 @@ It submits only when you ask it to, and never uses LinkedIn, never types passwor
 1. Make a folder for your job search with a folder named `resume` inside. Put your resume there: either your Overleaf project downloaded as **Source** (a .zip from Overleaf's menu) and unzipped, or your Word `.docx`.
 2. Optional: add `profile.json` (your standard answers; use **Download backup** on the extension's profile page) and `jobs.txt` (posting links, one per line). Without `profile.json`, Claude makes one and asks only what your resume doesn't say.
 3. Open the Claude desktop app, go to **Cowork** and choose your job-search folder ([help](https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork)).
-4. Ask things like "Find data internships in CA", "Work through jobs.txt", "I submitted Northwind" or "Help me prep for my interview Tuesday".
+4. Ask Claude to apply: see [Your first batch](#your-first-batch).
 
 In a batch, Claude tailors all the resumes at once and fills all the forms at the same time. It applies to at most two roles per company in 5 days, so recruiters don't see a flood of applications from you; the rest wait in `jobs.txt`.
 
 Claude adds `Applications/` (one folder per application) and `tracker.xlsx` to your folder.
+
+## Your first batch
+
+Use **Opus 5.5 with medium effort** (Claude Code: `/model`, then `/effort medium`). Then ask:
+
+> Apply to 6 jobs fill all
+
+Claude tailors a resume for each of the next 6 postings in `jobs.txt`, fills every form and stops before Submit. You check each one and submit it.
+
+Other requests: "Apply to 6 jobs" (leaves agreement boxes to you), "Apply to 6 jobs and submit", "Find data internships in CA".
 
 ## Using Claude Code instead
 
