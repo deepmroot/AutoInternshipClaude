@@ -2,7 +2,7 @@
 """Draw the README's star history chart from the GitHub API.
 
 Writes stars.svg (light) and stars-dark.svg into .github/star-chart/.
-The workflow in .github/workflows/star-chart.yml runs it once a day and
+The workflow in .github/workflows/star-chart.yml runs it every 5 minutes and
 pushes the two files to the star-chart-images branch, where the README
 loads them; they aren't kept on main.
 GitHub only lists stargazers to a signed-in caller, so a run by hand needs
@@ -14,11 +14,13 @@ Standard library only, so the workflow needs no setup step.
 """
 
 import bisect
+import http.client
 import json
 import math
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -106,8 +108,20 @@ def get(url, token, accept):
     })
     if token:
         req.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.load(resp), resp.headers.get("Link") or ""
+    # GitHub sometimes answers a busy moment with a 5xx or 429, or the
+    # connection drops. One more try after a short wait clears most of these,
+    # so the chart still updates. Other errors (a 401, a 404) fail at once.
+    for attempt in (1, 2):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.load(resp), resp.headers.get("Link") or ""
+        except urllib.error.HTTPError as e:
+            if attempt == 2 or not (e.code >= 500 or e.code == 429):
+                raise
+        except (OSError, http.client.HTTPException):
+            if attempt == 2:
+                raise
+        time.sleep(10)
 
 
 def fetch(repo, token):
