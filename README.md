@@ -54,8 +54,8 @@ In auto mode, Claude Code's safety check can block Claude from ticking agreement
 
 <a href="https://github.com/pqthangv/AutoInternshipClaude/stargazers">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/star-chart/stars-dark.svg">
-    <img alt="Star history chart" src=".github/star-chart/stars.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pqthangv/AutoInternshipClaude/star-chart-images/stars-dark.svg">
+    <img alt="Star history chart" src="https://raw.githubusercontent.com/pqthangv/AutoInternshipClaude/star-chart-images/stars.svg">
   </picture>
 </a>
 

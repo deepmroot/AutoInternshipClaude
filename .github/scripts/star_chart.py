@@ -2,7 +2,9 @@
 """Draw the README's star history chart from the GitHub API.
 
 Writes stars.svg (light) and stars-dark.svg into .github/star-chart/.
-The workflow in .github/workflows/star-chart.yml runs it once a day.
+The workflow in .github/workflows/star-chart.yml runs it once a day and
+pushes the two files to the star-chart-images branch, where the README
+loads them; they aren't kept on main.
 GitHub only lists stargazers to a signed-in caller, so a run by hand needs
 a token too, for example from the GitHub CLI:
 

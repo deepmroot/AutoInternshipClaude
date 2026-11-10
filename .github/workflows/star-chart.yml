@@ -1,4 +1,4 @@
-# Redraws the README's star chart (.github/star-chart/) once a day, or when
+# Redraws the README's star chart (branch star-chart-images) once a day, or when
 # started by hand from the Actions tab. It runs on a timer, not on each new
 # star, because a star-triggered run is listed under the name of the person
 # who starred, which turns the Actions tab into a log of who starred.
@@ -12,7 +12,8 @@ on:
     - cron: "37 7 * * *"
   workflow_dispatch:
 
-# The repo gives workflows read-only access by default; this job pushes the chart.
+# The repo gives workflows read-only access by default; this job pushes the
+# chart's branch.
 permissions:
   contents: write
 
@@ -35,18 +36,25 @@ jobs:
           # GitHub lists stargazers only to a signed-in caller.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # The chart is the same file for the same stars, so this commits only
-      # when the stars changed.
-      - name: Commit it if it changed
+      # The images live on a branch of their own, replaced each time by one
+      # commit holding just them, so main's history gets no bot commits. The
+      # README loads them from there. The chart is the same file for the same
+      # stars, so this pushes only when the stars changed.
+      - name: Publish the chart if it changed
+        env:
+          BRANCH: star-chart-images
         run: |
-          git add .github/star-chart
-          if git diff --cached --quiet; then
+          light=$(git hash-object -w .github/star-chart/stars.svg)
+          dark=$(git hash-object -w .github/star-chart/stars-dark.svg)
+          # A tree with only the two images, built without touching main's files.
+          tree=$(printf '100644 blob %s\tstars-dark.svg\n100644 blob %s\tstars.svg\n' \
+            "$dark" "$light" | git mktree)
+          if git fetch --depth=1 origin "$BRANCH" &&
+             [ "$(git rev-parse 'FETCH_HEAD^{tree}')" = "$tree" ]; then
             echo "Chart unchanged."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "update star chart"
-          # Picks up anything pushed while this ran, so the push isn't refused.
-          git pull --rebase origin "$GITHUB_REF_NAME"
-          git push origin HEAD:"$GITHUB_REF_NAME"
+          commit=$(git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit-tree "$tree" -m "star chart")
+          git push --force origin "$commit:refs/heads/$BRANCH"
