@@ -14,8 +14,9 @@ Eightfold, Paylocity). Anything else, or a lookup that fails, is reported so tha
 browser as before. LinkedIn is never read.
 
 --profile screens each posting against the user's status and degree before anyone tailors for it: "skip" when
-it plainly rules the user out (excludes F-1 students, no CPT or OPT, permanent work authorization, citizenship,
-U.S. person status or a clearance the user can't have, a graduate-only role for an undergraduate), "check" for
+it plainly rules the user out (excludes F-1 students, no CPT or OPT, permanent work authorization, U.S. or Canadian
+citizenship, U.S. person status or a clearance the user can't have, co-op enrollment the user doesn't have,
+a graduate-only role for an undergraduate), "check" for
 wording a person should judge, else "ok", with the sentences behind it. Sponsorship alone never skips: below
 senior year it doesn't stop an application (SKILL.md step 2). --move-skips (with --jobs) moves skipped lines
 below "# done" with the reason, so no batch picks them again. Batch 2026-11-08 spent $2.41 of $17.76 on four
@@ -638,7 +639,7 @@ REQUIRE = re.compile(r'\b(must|required?|requires|requirement|mandatory|only|nee
 NOT_REQUIRED = re.compile(r'\b(not|no)\b (be )?(required|necessary|needed|a requirement)\b')
 # EEO statements list citizenship among the traits an employer ignores; those sentences rule no one out.
 EEO = re.compile(r'\b(without regard|regardless of|discriminat\w*|equal (employment )?opportunity|race|religion|protected (veteran|class|status)|affirmative action|'
-                 r'citizenship and immigration services|e-verify)\b')
+                 r'citizenship and immigration services|e-verify|employment equity|designated groups?|aoda|accessibility for ontarians)\b')
 # "Must be a U.S. citizen, permanent resident, or authorized to work in the U.S." lets in anyone allowed to work.
 OR_AUTHORIZED = re.compile(r'\bor\b[^.]{0,40}\b(authori[sz]ed|eligible) to work\b|\bor (have|possess|hold) (valid |current )?(us )?work authori[sz]ation\b'
                            r'|\btemporary residents?\b')  # "hires U.S. citizens, permanent residents, refugees, and temporary residents"
@@ -693,6 +694,23 @@ NO_SPONSOR = re.compile(r'\b(not|unable to|cannot|won\'?t|will not|does not|do n
 GRAD_ONLY = re.compile(r'\b(ph\.?\s?d|doctoral|doctorate|master[\'’]?s|mba|graduate (degree|program|student)s?)\b')
 UNDERGRAD = re.compile(r'\b(bachelor\w*|undergrad\w*|bs|ba|bsc|beng|bachelors|baccalaureate|freshm[ae]n|sophomores?|juniors?|seniors?)\b'
                        r'|\b(college|university)\b[^.]{0,20}\bor (an? )?(master|ph\.?d|graduate|doctoral)')
+# Canada. "Must be a Canadian citizen or permanent resident" (federal jobs, some banks and defence work) rules out a
+# study or work permit holder; "legally eligible to work in Canada" lets in anyone with a permit.
+CA_CITIZEN = re.compile(r'\bcanadian citizen(ship|s)?\b|\bcitizens? of canada\b')
+CA_OR_AUTH = re.compile(r'\bor\b[^.]{0,60}\b(legally )?(eligible|entitled|authori[sz]ed|able) to work in canada\b|\b(valid|open|co-?op) (work|study) permits?\b'
+                        r'|\binternational students?\b[^.]{0,40}\b(welcome|eligible|may apply|can apply|encouraged)\b')
+CA_PREFER = re.compile(r'\bpreference\b|\bpriority\b')
+# Government of Canada security screening: Reliability status is open to permit holders with enough history in
+# Canada, so it's a judgment; Secret and Top Secret usually need citizenship.
+CA_CLEARANCE = re.compile(r'\b(enhanced )?reliability (status|clearance|screening)\b|\bsecurity (screening|clearance)\b[^.]{0,60}\b(government of canada|canadian government)\b'
+                          r'|\b(government of canada|canadian government|federal government of canada)\b[^.]{0,60}\b(security )?(clearance|screening)\b'
+                          r'|\b(secret|top secret) (level )?(security )?(clearance|status)\b')
+US_CLEARANCE = re.compile(r'\b(dod|us government|united states government|us federal|ts\s?/\s?sci|polygraph|public trust)\b')
+CONTROLLED_GOODS = re.compile(r'\bcontrolled goods\b')
+# Co-op roles that take only students in a co-op program, or only students going back to school after the work term.
+COOP_ONLY = re.compile(r'\b(enrolled|registered|participating|be)\b[^.]{0,60}\b(co-?op|cooperative education|co-operative education|work[- ]integrated learning)\b'
+                       r'[^.]{0,30}\b(program|programme|stream|student|term)s?\b|\bco-?op students? only\b|\bmust be (a )?co-?op student\b')
+RETURNING = re.compile(r'\breturn\w*\b[^.]{0,30}\b(full[- ]time )?(studies|school|study|university|college|academic)\b')
 ENROLLED = re.compile(r'\b(enrolled|pursuing|in the process of obtaining|working towards?|candidates?|students?)\b')
 # Kept whole when splitting sentences: "U.S.", "e.g.", "Ph.D.", "Inc."
 ABBREV = re.compile(r'(?:\b[A-Za-z]\.){2,}|\b(?:e\.g|i\.e|etc|inc|ltd|vs|incl|approx|ph\.d|no)\.', re.I)
@@ -709,16 +727,28 @@ def user_status(prof):
     # profile.json has no citizenship field of its own (autointernship/shared.js defaults()); a visa in workAuthDetails,
     # or needing sponsorship, means not a citizen or permanent resident, as find_internships.py reads it too.
     cz, auth = norm(prof.get('citizenship')), norm(prof.get('workAuthDetails'))
+    home = norm(prof.get('authCountry') or prof.get('country'))
+    home = 'ca' if home in ('canada', 'ca', 'can') else 'us' if home in ('united states', 'usa', 'us', 'united states of america') else ''
     visa = re.search(r'\b(f ?1|j ?1|h ?1 ?b|opt|cpt|tn|visa)\b', auth)
     if cz:
         citizen = cz in ('united states', 'usa', 'us', 'united states of america', 'american')
     elif visa or prof.get('needsSponsorship') == 'yes':
         citizen = False
+    elif re.search(r'\bu ?s citizen', auth):
+        citizen = True
     else:
-        citizen = True if re.search(r'\bu ?s citizen', auth) else None
+        citizen = False if home == 'ca' else None  # a Canadian profile is not a U.S. citizen unless it says so
+    # Canadian status: citizen, permanent resident, or a study or work permit. None when the profile doesn't say.
+    ca_citizen = cz in ('canada', 'canadian') or bool(re.search(r'\bcanadian citizen', auth))
+    ca_permit = bool(re.search(r'\b(study|work|co ?op work|open work|post graduation work) permit\b|\bpgwp\b|\binternational student\b', auth))
+    ca_pr = home == 'ca' and not ca_citizen and bool(re.search(r'\bpermanent resident\b|\b(canadian )?pr\b', auth))
+    ca_known = ca_citizen or ca_pr or ca_permit
     degree = prof.get('degree') or ((prof.get('education') or [{}])[0] or {}).get('degree', '')
     term = re.search(r'(summer|fall|winter|spring)\s+(20\d{2})', str(prof.get('internshipTerm', '')), re.I)
-    return {'citizen': citizen, 'permanent': bool(re.search(r'green card|permanent resident|\blpr\b', auth)),
+    us_pr = r'green card|\blpr\b' if home == 'ca' else r'green card|permanent resident|\blpr\b'  # a Canadian PR isn't a green card
+    return {'citizen': citizen, 'permanent': bool(re.search(us_pr, auth)), 'home': home,
+            'ca_citizen': ca_citizen, 'ca_pr': ca_pr, 'ca_permit': ca_permit, 'ca_known': ca_known,
+            'coop': prof.get('coopProgram') or '', 'returning': prof.get('returningToSchool') or '',
             'visa': visa.group(0).upper().replace(' ', '-') if visa else '', 'degree': degree_level(degree),
             'below_senior': below_senior(prof, term.group(0) if term else 'Summer 2027'), 'sponsor': prof.get('needsSponsorship') == 'yes'}
 
@@ -803,6 +833,29 @@ def screen(p, st):
                              'U.S. citizenship or permanent residence required' if either else 'U.S. citizenship required', s))
             elif st['citizen'] is None:
                 hits.append(('check', 'citizenship', s))
+        elif CA_CITIZEN.search(low) and (needed or CA_PREFER.search(low)) and not CA_OR_AUTH.search(low):
+            either = PERMANENT.search(low)
+            allowed = st['ca_citizen'] or (either and st['ca_pr'])
+            if not allowed:
+                soft = maybe or may or CA_PREFER.search(low) or re.search(r'\b(some|certain) (positions|roles|jobs)\b', low)
+                rule = 'Canadian citizenship or permanent residence required' if either else 'Canadian citizenship required'
+                if soft:
+                    hits.append(('check', 'preference for Canadian citizens' + (' and permanent residents' if either else ''), s))
+                elif st['ca_known']:
+                    hits.append(('skip', rule, s))
+                else:
+                    hits.append(('check', rule, s))
+        elif CONTROLLED_GOODS.search(low) and not (st['ca_citizen'] or st['ca_pr']):
+            hits.append(('check', 'Controlled Goods Program', s))
+        elif st['home'] == 'ca' and (CA_CLEARANCE.search(low) or CLEARANCE.search(low)) and not NOT_REQUIRED.search(low) and not NO_CLEARANCE.search(low):
+            if US_CLEARANCE.search(low):
+                hits.append(('check' if maybe or may else 'skip', 'U.S. security clearance', s))
+            elif not st['ca_citizen']:
+                hits.append(('check', 'Government of Canada security screening', s))
+        elif COOP_ONLY.search(low) and (needed or 'only' in low) and not maybe and st['coop'] != 'yes':
+            hits.append(('skip' if st['coop'] == 'no' else 'check', 'co-op program enrollment required', s))
+        elif RETURNING.search(low) and needed and not maybe and st['returning'] == 'no':
+            hits.append(('check', 'must return to school after the work term', s))
         elif not_pr and (US_PERSON.search(low) or EXPORT_ACCESS.search(low)):
             # "May involve export-controlled information" or "an offer may depend on an export license" rules no one out;
             # a U.S. person rule with a license as the other way in, or plain export-controlled access, is a judgment.

@@ -10,6 +10,8 @@ const AutoInternship = (() => {
       work: [], projects: [], education: [],
       expectedGraduation: '', classStanding: '', enrolled: '', returningToSchool: '',
       relevantCoursework: '', internshipTerm: '', availableFrom: '', availableUntil: '', workAuthDetails: '',
+      // Canadian co-op: enrolled in a school co-op program (yes/no), work terms done ("2"), term length ("8 months").
+      coopProgram: '', workTermsCompleted: '', workTermLength: '', citizenship: '',
       summary: '', skills: '', yearsExperience: '',
       workAuthorized: '', authCountry: '', needsSponsorship: '', needsSponsorshipForInternship: '', willingToRelocate: '',
       governmentEmployee: '', governmentRelative: '',
@@ -17,6 +19,9 @@ const AutoInternship = (() => {
       // Voluntary self-identification. Empty means "leave it for me"; see SELF_ID_LABELS for the choices.
       gender: '', pronouns: '', hispanicLatino: '', race: '', veteranStatus: '', disabilityStatus: '', lgbtq: '',
       transgender: '', sexualOrientation: '',
+      // Canadian employment equity questions (Indigenous, visible minority / racialized). Women and persons
+      // with disabilities use gender and disabilityStatus above.
+      indigenous: '', visibleMinority: '',
       savedAnswers: [],
       // For Claude's written answers; the internship-application skill reads these from profile.json.
       writingStyle: '', extraRules: '',
@@ -32,12 +37,17 @@ const AutoInternship = (() => {
     race: {
       'american-indian': 'American Indian or Alaska Native', asian: 'Asian', black: 'Black or African American',
       'pacific-islander': 'Native Hawaiian or Other Pacific Islander', white: 'White', 'two-or-more': 'Two or more races',
+      // Canadian forms (Statistics Canada groups). On a U.S. form, the Asian groups fall back to "Asian".
+      indigenous: 'Indigenous (First Nations, Métis, Inuit)', 'south-asian': 'South Asian', 'east-asian': 'East Asian (Chinese, Korean, Japanese)',
+      'southeast-asian': 'Southeast Asian (Filipino, Vietnamese…)', 'west-asian': 'West Asian or Arab', 'latin-american': 'Latin American',
       decline: 'Decline to answer',
     },
     veteranStatus: { no: 'Not a veteran', protected: 'Protected veteran', decline: 'Decline to answer' },
     disabilityStatus: { yes: 'Yes, I have (or have had) a disability', no: 'No disability', decline: 'Decline to answer' },
     lgbtq: { yes: 'Yes', no: 'No', decline: 'Decline to answer' },
     transgender: { yes: 'Yes', no: 'No', decline: 'Decline to answer' },
+    indigenous: { yes: 'Yes, Indigenous (First Nations, Métis or Inuit)', no: 'No', decline: 'Decline to answer' },
+    visibleMinority: { yes: 'Yes, visible minority / racialized', no: 'No', decline: 'Decline to answer' },
     sexualOrientation: {
       straight: 'Straight / heterosexual', gay: 'Gay', lesbian: 'Lesbian', bisexual: 'Bisexual', pansexual: 'Pansexual',
       asexual: 'Asexual', queer: 'Queer', decline: 'Decline to answer',

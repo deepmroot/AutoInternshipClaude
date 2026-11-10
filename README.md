@@ -34,6 +34,14 @@ In a batch, Claude tailors all the resumes at once and fills all the forms at th
 
 Claude adds `Applications/` (one folder per application) and `tracker.xlsx` to your folder.
 
+## Canada and co-op
+
+This fork works for Canadian students and co-op terms. Set **In which country** to Canada on the extension's profile page (or `authCountry` in `profile.json`), then:
+
+- **Finding jobs**: Canadian postings stay and U.S.-only ones are dropped. Put every term you want in Internship term ("Winter 2027, Summer 2027"); postings with no term are kept too. `--location BC`, `--location GTA` and `--location "Remote Canada"` work.
+- **Eligibility**: set Citizenship and Work authorization details (Canadian citizen, permanent resident, or study permit with co-op work permit). Roles that need Canadian citizenship or PR are skipped only when your status rules you out; Reliability status, Controlled Goods and "preference to citizens" are flagged for you, not skipped. Set "Enrolled in a co-op program" so co-op-only roles are screened right.
+- **Forms**: provinces, "legally entitled to work in Canada", co-op program, work terms completed, work term length, and the employment equity questions (Indigenous, visible minority, women, persons with disabilities) are filled from your profile. SIN is never filled. The Fill button also shows on Taleo, SuccessFactors, Dayforce, UKG, ADP, Recruitee and Breezy.
+
 ## Your first batch
 
 Use **Opus 5.5 with medium effort** (Claude Code: `/model`, then `/effort medium`). Then ask:

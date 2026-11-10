@@ -7,13 +7,17 @@ Usage:
   python find_internships.py --folder "JOB_SEARCH_FOLDER" [filters] [--append]
   python find_internships.py --folder "JOB_SEARCH_FOLDER" --tidy
       Moves links in jobs.txt that are already in tracker.xlsx (same link, job ID, or company and role), listed
-      twice, or (for a U.S. profile) outside the U.S. by their note's location, below "# done". Nothing is
+      twice, or outside the user's home country (U.S. or Canada) by their note's location, below "# done". Nothing is
       downloaded and nothing is deleted.
 
 Filters (all optional; without them, sensible defaults come from profile.json in the folder):
-  --term "Summer 2027"        internship term (default: profile's internship term, else Summer 2027)
+  --term "Summer 2027"        internship term, repeatable (default: every term in the profile's internship term,
+                              e.g. "Winter 2027, Summer 2027", else Summer 2027)
+  --include-no-term           also keep listings with no term ("N/A"); on by default for a Canadian profile,
+                              since many co-op postings don't give one
   --category software|data|hardware|product|quant   (repeatable; default: all)
-  --location CA --location Seattle --location Remote  (repeatable; state codes, cities, SF, NYC, Remote)
+  --location CA --location Seattle --location Remote  (repeatable; state or province codes, cities, SF, NYC, GTA,
+                              Remote; "Remote Canada" for remote roles in Canada)
   --keyword data --keyword analyst                  (repeatable; any must appear in the title)
   --exclude-keyword phd --exclude-keyword senior    (repeatable)
   --degree "Bachelor's"       keep listings open to this degree level (default: from profile.json)
@@ -25,7 +29,7 @@ Filters (all optional; without them, sensible defaults come from profile.json in
   --days 30                   only listings posted in the last N days
   --limit 25                  at most N results, newest first
   --append                    add the results to jobs.txt (above any "# done" line), one link per line with a note
-  --include-abroad            keep listings outside the U.S. (a U.S. profile drops them: the user's call, 2026-11-08)
+  --include-abroad            keep listings outside the home country (a U.S. or Canadian profile drops them)
 
 Skips LinkedIn links (LinkedIn prohibits automated tools) and listings that are closed, already in tracker.xlsx (same company and role) or already in jobs.txt.
 Prints one JSON object. Exit codes: 0 ok, 1 bad input, 6 couldn't download the list (network).
@@ -56,6 +60,15 @@ CITY_ALIASES = {
     'bay area': ['sf', 'san francisco', 'san jose', 'santa clara', 'mountain view', 'palo alto', 'sunnyvale',
                  'menlo park', 'redwood city', 'cupertino', 'oakland', 'fremont', 'milpitas', 'san mateo', 'foster city'],
     'la': ['los angeles', 'la,'], 'los angeles': ['los angeles'],
+    'gta': ['toronto', 'markham', 'mississauga', 'brampton', 'vaughan', 'richmond hill', 'oakville', 'scarborough',
+            'north york', 'etobicoke', 'pickering', 'ajax', 'whitby', 'oshawa', 'burlington', 'milton'],
+    'toronto': ['toronto', 'north york', 'scarborough', 'etobicoke'],
+    'vancouver': ['vancouver', 'burnaby', 'richmond, bc', 'surrey', 'coquitlam', 'new westminster', 'north vancouver'],
+    'lower mainland': ['vancouver', 'burnaby', 'richmond, bc', 'surrey', 'coquitlam', 'new westminster', 'langley', 'delta, bc'],
+    'ottawa': ['ottawa', 'kanata', 'nepean', 'gatineau'],
+    'montreal': ['montreal', 'montréal', 'laval'],
+    'waterloo': ['waterloo', 'kitchener', 'cambridge, on'],
+    'kitchener': ['waterloo', 'kitchener', 'cambridge, on'],
 }
 
 
@@ -112,11 +125,15 @@ def location_match(locations, prefs):
     locs = [l.lower() for l in locations]
     for p in prefs:
         q = p.strip()
-        if re.fullmatch(r'[A-Za-z]{2}', q) and q.upper() == q:  # state code like CA
+        if re.fullmatch(r'[A-Za-z]{2}', q) and q.upper() == q:  # state or province code like CA, BC, ON
             if any(re.search(rf',\s*{q.lower()}\b', l) for l in locs):
                 return True
             continue
         ql = q.lower()
+        if ql in ('remote canada', 'remote in canada', 'remote ca'):
+            if any('remote' in l and 'canada' in l for l in locs):
+                return True
+            continue
         if ql == 'remote':
             if any('remote' in l for l in locs):
                 return True
@@ -149,8 +166,43 @@ ABROAD = re.compile(r'\b(canada|united kingdom|uk|england|scotland|wales|ireland
 PROVINCE = re.compile(r',\s*(ON|BC|QC|AB|MB|SK|NS|NB|NL|PE)\b')
 
 
+CANADA_PLACE = re.compile(r'\b(canada|canadian|toronto|vancouver|montreal|montréal|ottawa|waterloo|kitchener|markham|calgary|'
+                          r'edmonton|burnaby|mississauga|kanata|winnipeg|halifax|gatineau|saskatoon|regina|kelowna|kamloops|'
+                          r'ontario|british columbia|alberta|manitoba|saskatchewan|nova scotia|new brunswick|newfoundland|'
+                          r'prince edward island)\b', re.I)
+
+
+def home_country(profile):
+    """'us', 'ca' or None, from the work-authorization country (else the address country)."""
+    c = norm(profile.get('authCountry') or profile.get('country'))
+    if c in ('united states', 'usa', 'us', 'united states of america'):
+        return 'us'
+    if c in ('canada', 'ca', 'can'):
+        return 'ca'
+    return None
+
+
 def home_is_us(profile):
-    return norm(profile.get('authCountry') or profile.get('country')) in ('united states', 'usa', 'us', 'united states of america')
+    return home_country(profile) == 'us'
+
+
+def outside_canada(places):
+    """True when the locations name only places outside Canada ("SF, NYC"), False when one is in Canada,
+    None when they don't say ("Remote")."""
+    text = ', '.join(places) if isinstance(places, (list, tuple)) else str(places or '')
+    if CANADA_PLACE.search(text) or PROVINCE.search(text):
+        return False
+    if outside_us(places) is False or ABROAD.search(text):
+        return True
+    return None
+
+
+def outside_home(places, home):
+    if home == 'us':
+        return outside_us(places)
+    if home == 'ca':
+        return outside_canada(places)
+    return None
 
 
 def outside_us(places):
@@ -260,7 +312,8 @@ def tidy(folder):
     lines = open(jobs_path, encoding='utf-8').read().splitlines()
     done_at = next((i for i, l in enumerate(lines) if l.strip().lower() == '# done'), len(lines))
     keep, moved, seen = [], [], set()
-    us_only = home_is_us(load_profile(folder))  # the user's call (2026-11-08): batches skip jobs outside the U.S.
+    home = home_country(load_profile(folder))  # batches skip jobs outside the home country (U.S. or Canada)
+    away = {'us': 'not in the U.S.', 'ca': 'not in Canada'}.get(home)
     for line in lines[:done_at]:
         m = re.search(r'https?://\S+', line)
         if not m:
@@ -278,8 +331,8 @@ def tidy(folder):
             moved.append((line, note or m.group(0), f"in tracker: {hit['id']} {hit['status']}".strip()))
         elif links & seen:
             moved.append((line, note or m.group(0), 'listed twice'))
-        elif us_only and len(parts) > 2 and outside_us(parts[2]):
-            moved.append((line.rstrip() + ' | not in the U.S.', note, 'not in the U.S.'))
+        elif away and len(parts) > 2 and outside_home(parts[2], home):
+            moved.append((line.rstrip() + ' | ' + away, note, away))
         else:
             keep.append(line)
         seen |= links
@@ -294,7 +347,7 @@ def tidy(folder):
     return {'ok': True, 'moved_below_done': len(moved),
             'in_tracker': sum(1 for *_, why in moved if why.startswith('in tracker')),
             'listed_twice': sum(1 for *_, why in moved if why == 'listed twice'),
-            'not_in_us': sum(1 for *_, why in moved if why == 'not in the U.S.'),
+            'not_in_home_country': sum(1 for *_, why in moved if why.startswith('not in')),
             'left_in_queue': sum(1 for l in keep if re.search(r'https?://', l)),
             'moved': shown + ([f'... {len(moved) - 10} more'] if len(moved) > 10 else [])}
 
@@ -317,7 +370,8 @@ def fetch():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--folder', default='.')
-    ap.add_argument('--term')
+    ap.add_argument('--term', action='append', default=[])
+    ap.add_argument('--include-no-term', action='store_true', default=None)
     ap.add_argument('--category', action='append', default=[])
     ap.add_argument('--location', action='append', default=[])
     ap.add_argument('--keyword', action='append', default=[])
@@ -328,7 +382,7 @@ def main():
     ap.add_argument('--days', type=int)
     ap.add_argument('--limit', type=int, default=25)
     ap.add_argument('--append', action='store_true')
-    ap.add_argument('--include-abroad', action='store_true', help='keep listings outside the U.S. (dropped by default for a U.S. profile)')
+    ap.add_argument('--include-abroad', action='store_true', help='keep listings outside the home country (dropped by default for a U.S. or Canadian profile)')
     ap.add_argument('--tidy', action='store_true', help='only move queued links already in the tracker below "# done"')
     a = ap.parse_args()
 
@@ -338,11 +392,16 @@ def main():
     profile = load_profile(folder)
     defaults_used = {}
 
-    term = a.term
-    if not term:
-        m = re.search(r'(summer|fall|winter|spring)\s+(20\d{2})', str(profile.get('internshipTerm', '')), re.I)
-        term = f'{m.group(1).title()} {m.group(2)}' if m else 'Summer 2027'
-        defaults_used['term'] = term
+    terms = [t.strip().title() for t in a.term if t.strip()]
+    if not terms:
+        found = re.findall(r'(summer|fall|winter|spring)\s+(20\d{2})', str(profile.get('internshipTerm', '')), re.I)
+        terms = list(dict.fromkeys(f'{t.title()} {y}' for t, y in found)) or ['Summer 2027']
+        defaults_used['term'] = ', '.join(terms)
+    term = terms[0]  # the first term decides class standing below
+    home = home_country(profile)
+    no_term = a.include_no_term if a.include_no_term is not None else home == 'ca'
+    if a.include_no_term is None and no_term:
+        defaults_used['include_no_term'] = 'keeping listings with no term (Canadian profile)'
 
     degree = a.degree
     if not degree:
@@ -375,31 +434,32 @@ def main():
     kw = [norm(k) for k in a.keyword]
     ex = [norm(k) for k in a.exclude_keyword]
 
-    skipped = {'linkedin_link': 0, 'closed': 0, 'term': 0, 'category': 0, 'location': 0, 'outside_us': 0, 'keyword': 0, 'degree': 0,
+    skipped = {'linkedin_link': 0, 'closed': 0, 'term': 0, 'category': 0, 'location': 0, 'outside_home_country': 0, 'keyword': 0, 'degree': 0,
                'sponsorship': 0, 'too_old': 0, 'already_tracked': 0, 'already_in_jobs_txt': 0}
-    us_only = home_is_us(profile) and not a.include_abroad
+    stay_home = home if not a.include_abroad else None
     results = []
     for x in data:
         if 'linkedin.com' in (x.get('url') or '').lower():  # never queue LinkedIn; apply on the company's site
             skipped['linkedin_link'] += 1; continue
         if not x.get('active') or not x.get('is_visible', True):
             skipped['closed'] += 1; continue
-        if term not in (x.get('terms') or []):
+        x_terms = x.get('terms') or []
+        if not (set(terms) & set(x_terms) or (no_term and (not x_terms or x_terms == ['N/A']))):
             skipped['term'] += 1; continue
         if cats and x.get('category') not in cats:
             skipped['category'] += 1; continue
         if not location_match(x.get('locations') or [], a.location):
             skipped['location'] += 1; continue
-        if us_only and outside_us(x.get('locations') or []):
-            skipped['outside_us'] += 1; continue
+        if stay_home and outside_home(x.get('locations') or [], stay_home):
+            skipped['outside_home_country'] += 1; continue
         title = norm(x.get('title'))
         if (kw and not any(k in title for k in kw)) or any(k in title for k in ex):
             skipped['keyword'] += 1; continue
         degrees = x.get('degrees') or []
         if degree and degrees and degree not in degrees:
             skipped['degree'] += 1; continue
-        sp = x.get('sponsorship', '')
-        if (drop_no_sponsor and sp == 'Does Not Offer Sponsorship') or \
+        sp = x.get('sponsorship', '')  # SimplifyJobs' sponsorship tags are about U.S. visas
+        if home != 'ca' and (drop_no_sponsor and sp == 'Does Not Offer Sponsorship') or \
                 (drop_citizenship and sp == 'U.S. Citizenship is Required'):
             skipped['sponsorship'] += 1; continue
         if cutoff and (x.get('date_posted') or 0) < cutoff:
@@ -425,6 +485,7 @@ def main():
         'company': x['company_name'], 'role': x['title'], 'locations': x.get('locations', []),
         'posted': dt.date.fromtimestamp(x['date_posted']).isoformat() if x.get('date_posted') else '',
         'category': x.get('category'), 'degrees': x.get('degrees', []), 'sponsorship': x.get('sponsorship'),
+        'terms': x.get('terms', []),
         'url': x.get('url'),
     } for x in results]
 
@@ -441,7 +502,7 @@ def main():
             f.write('\n'.join(merged) + '\n')
         added = len(new_lines)
 
-    out({'ok': True, 'source': REPO, 'term': term, 'filters': {
+    out({'ok': True, 'source': REPO, 'terms': terms, 'home_country': home, 'filters': {
         'categories': a.category, 'locations': a.location, 'keywords': a.keyword, 'exclude_keywords': a.exclude_keyword,
         'degree': degree, 'drop_no_sponsorship_postings': drop_no_sponsor,
         'drop_citizenship_required': drop_citizenship, 'below_senior': below, 'days': a.days}, 'defaults_from_profile': defaults_used,

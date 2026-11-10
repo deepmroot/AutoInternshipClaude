@@ -48,10 +48,10 @@
           <label class="field"><span>Street address</span><input data-key="street" autocomplete="address-line1"></label>
           <label class="field"><span>City</span><input data-key="city" autocomplete="address-level2"></label>
           <div class="pair">
-            <label class="field"><span>State or province</span><input data-key="state" autocomplete="address-level1" placeholder="CA"></label>
+            <label class="field"><span>State or province</span><input data-key="state" autocomplete="address-level1" placeholder="BC or CA"></label>
             <label class="field"><span>Postal code</span><input data-key="postalCode" autocomplete="postal-code"></label>
           </div>
-          <label class="field"><span>Country</span><input data-key="country" autocomplete="country-name" placeholder="United States"></label>
+          <label class="field"><span>Country</span><input data-key="country" autocomplete="country-name" placeholder="Canada or United States"></label>
         </div>
       </section>
 
@@ -84,16 +84,21 @@
             <select data-key="enrolled"><option value="">Not set</option><option value="yes">Yes</option><option value="no">No</option></select></label>
           <label class="field"><span>Returning to school after the internship</span>
             <select data-key="returningToSchool"><option value="">Not set</option><option value="yes">Yes</option><option value="no">No</option></select></label>
-          <label class="field"><span>Internship term</span><input data-key="internshipTerm" placeholder="Summer 2027"></label>
+          <label class="field"><span>Internship term</span><input data-key="internshipTerm" placeholder="Winter 2027, Summer 2027"></label>
           <div class="pair">
             <label class="field"><span>Available from</span><input data-key="availableFrom" placeholder="June 1, 2027"></label>
             <label class="field"><span>Available until</span><input data-key="availableUntil" placeholder="August 20, 2027"></label>
           </div>
           <label class="field wide"><span>Relevant coursework</span><textarea data-key="relevantCoursework" rows="2" placeholder="Data Structures, Algorithms, Databases, Probability and Statistics"></textarea></label>
-          <label class="field wide"><span>Work authorization details</span><input data-key="workAuthDetails" placeholder="Optional, for example: F-1 student, eligible for CPT"></label>
+          <label class="field wide"><span>Work authorization details</span><input data-key="workAuthDetails" placeholder="Optional, for example: Canadian permanent resident; study permit with co-op work permit; F-1 student, eligible for CPT"></label>
+          <label class="field"><span>Citizenship</span><input data-key="citizenship" placeholder="Optional, for example: Canada"></label>
+          <label class="field"><span>Enrolled in a co-op program</span>
+            <select data-key="coopProgram"><option value="">Not set</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+          <label class="field"><span>Co-op work terms completed</span><input data-key="workTermsCompleted" inputmode="numeric" placeholder="1"></label>
+          <label class="field"><span>Work term length you want</span><input data-key="workTermLength" placeholder="8 months"></label>
         </div>
         <p class="lede" style="margin-top:12px">Claude uses work authorization details only for written answers. Yes-or-no questions use your answers under Eligibility and preferences.</p>
-        <datalist id="standingList"><option value="Freshman"><option value="Sophomore"><option value="Junior"><option value="Senior"><option value="Graduate student"></datalist>
+        <datalist id="standingList"><option value="Freshman"><option value="Sophomore"><option value="Junior"><option value="Senior"><option value="Graduate student"><option value="1st year"><option value="2nd year"><option value="3rd year"><option value="4th year"></datalist>
       </section>
 
       <section id="work">
@@ -137,8 +142,8 @@
         <div class="grid">
           <label class="field"><span>Legally authorized to work</span>
             <select data-key="workAuthorized"><option value="">Not set</option><option value="yes">Yes</option><option value="no">No</option></select></label>
-          <label class="field"><span>In which country</span><input data-key="authCountry" placeholder="United States"></label>
-          <label class="field"><span>Need visa sponsorship, now or later</span>
+          <label class="field"><span>In which country</span><input data-key="authCountry" placeholder="Canada"></label>
+          <label class="field"><span>Need visa or work permit sponsorship, now or later</span>
             <select data-key="needsSponsorship"><option value="">Not set</option><option value="yes">Yes</option><option value="no">No</option></select></label>
           <label class="field"><span>Need sponsorship for the internship itself</span>
             <select data-key="needsSponsorshipForInternship"><option value="">Not set</option><option value="yes">Yes</option><option value="no">No</option></select></label>
@@ -156,7 +161,7 @@
 
       <section id="self-id">
         <h2>Voluntary self-identification</h2>
-        <p class="lede">Many U.S. applications end with these optional questions. AutoInternship answers one only with the choice you make here, and only when the form offers a matching option. Leave a question on “Not set” and AutoInternship leaves it for you. Some forms (Workday, for example) ask Hispanic or Latino and race in one list, so set both.</p>
+        <p class="lede">Many U.S. and Canadian applications end with these optional questions. Canadian employers ask the employment equity ones (women, Indigenous peoples, persons with disabilities, visible minorities). AutoInternship answers one only with the choice you make here, and only when the form offers a matching option. Leave a question on “Not set” and AutoInternship leaves it for you. Some forms (Workday, for example) ask Hispanic or Latino and race in one list, so set both.</p>
         <div class="grid">
           <!-- The choices come from SELF_ID_LABELS in shared.js (options.js adds them). -->
           <label class="field"><span>Gender</span><select data-key="gender" data-choices="gender"><option value="">Not set</option></select></label>
@@ -168,6 +173,8 @@
           <label class="field"><span>Identify as LGBTQ+</span><select data-key="lgbtq" data-choices="lgbtq"><option value="">Not set</option></select></label>
           <label class="field"><span>Identify as transgender</span><select data-key="transgender" data-choices="transgender"><option value="">Not set</option></select></label>
           <label class="field"><span>Sexual orientation</span><select data-key="sexualOrientation" data-choices="sexualOrientation"><option value="">Not set</option></select></label>
+          <label class="field"><span>Indigenous (Canada)</span><select data-key="indigenous" data-choices="indigenous"><option value="">Not set</option></select></label>
+          <label class="field"><span>Visible minority / racialized (Canada)</span><select data-key="visibleMinority" data-choices="visibleMinority"><option value="">Not set</option></select></label>
         </div>
       </section>
 

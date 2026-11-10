@@ -21,7 +21,7 @@
 
   // Never auto-filled. These get an amber outline so you (or Claude, with your OK) handle them.
   const SENSITIVE = /\b(ssn|social security|social insurance|national insurance|tax id|passport|driver'?s? licen[cs]e|date of birth|birth ?date|dob|bank|routing|account number|credit card|card number|cvv|password)\b/;
-  const DEMOGRAPHIC = /\b(gender|sex|pronouns?|races?|racial|ethnicity|ethnic|hispanic|latin[oax]|veteran|disability|disabled|sexual orientation|transgender|lgbt\w*|religion|religious|marital)\b/;
+  const DEMOGRAPHIC = /\b(gender|sex|pronouns?|races?|racial|ethnicity|ethnic|hispanic|latin[oax]|veteran|disability|disabled|sexual orientation|transgender|lgbt\w*|religion|religious|marital|indigenous|aboriginal|first nations?|m[eé]tis|inuit|visible minorit\w*|racialized|identify as (a )?wom[ae]n)\b/;
   // Demographic questions are never filled from RULES or saved answers. The voluntary self-identification
   // questions (gender, pronouns, Hispanic or Latino, race, veteran status, disability, LGBTQ+, transgender
   // identity, sexual orientation) are filled only from the answers you chose on the profile page; see
@@ -33,7 +33,7 @@
   // made in your name, so it is always left for you to tick.
   const CONSENT = /\b(agree|consent|certify|acknowledge|attest|accept|i have read|i understand|confirm)\b/;
   // Fields that ask about someone else (a referrer, a manager) rather than you.
-  const NOT_SELF = /\b(refer\w*|reference|emergency|manager|supervisor|recruiter|parent|guardian|spouse|company|employer|school|hiring)\b/;
+  const NOT_SELF = /\b(refer\w*|reference|emergency|manager|supervisor|recruiter|parent|guardian|spouse|company|employer|school|hiring|coordinator|advisor|adviser)\b/;
   const NOT_PHONE = new RegExp(NOT_SELF.source + '|\\b(type|code|extension|ext)\\b');
 
   const yn = (v) => (v === 'yes' || v === 'no' ? v : null);
@@ -211,6 +211,10 @@
 
     // Student and internship questions
     { re: /\b(class|academic|student) (standing|level|year)\b|\b(current )?year (in|of) (school|study|college|university|program)\b|\bclassification\b|\bcurrent (school |academic )?year\b|\bschool year\b/, max: 80, kinds: YESNO_KINDS, value: (p) => p.classStanding },
+    // Canadian co-op questions. Before the enrolled rule: "Are you enrolled in a co-op program?" asks about co-op.
+    { re: /\b(enrolled|registered|participating|are you) in (a |an |your )?(school'?s? |university'?s? |college'?s? )?(recogni[sz]ed |accredited |formal )?(co-?op|co-operative education|cooperative education|work[- ]integrated learning)\b|\bare you (currently )?(a )?co-?op student\b/, max: 250, yesno: true, kinds: YESNO_KINDS, value: (p) => yn(p.coopProgram) },
+    { re: /\b(how many|number of) (previous |prior |completed )?(co-?op |work |internship )+(terms?|placements?)\b|\bwork terms? (completed|done)\b/, max: 150, kinds: ['text', 'select', 'radio'], value: (p) => p.workTermsCompleted },
+    { re: /\b(work term|co-?op|internship|placement) (length|duration)\b|\b(length|duration) of (the |your )?(work term|co-?op|internship|placement)\b|\bhow long\b[^?]{0,30}\b(work term|co-?op)\b/, max: 150, kinds: ['text', 'select', 'radio'], value: (p) => p.workTermLength },
     { re: /\b(are you|currently) (currently )?(enrolled|a (full[- ]time |part[- ]time )?student)\b|\benrolled (in|at)\b/, max: 250, yesno: true, kinds: YESNO_KINDS, value: (p) => yn(p.enrolled) },
     { re: /\breturn(ing)? to (school|your studies|university|college|campus)\b|\bcontinu(e|ing) (your |with your )?(education|studies|degree)\b/, max: 250, yesno: true, kinds: YESNO_KINDS, value: (p) => yn(p.returningToSchool) },
     { re: /\b(relevant )?course ?work\b|\brelevant (courses|classes)\b|\bcourses (you'?ve|you have) (taken|completed)\b/, max: 120, kinds: ['text', 'textarea'], value: (p) => p.relevantCoursework },
@@ -233,7 +237,13 @@
 
   const STATES = Object.fromEntries('AL:Alabama|AK:Alaska|AZ:Arizona|AR:Arkansas|CA:California|CO:Colorado|CT:Connecticut|DE:Delaware|DC:District of Columbia|FL:Florida|GA:Georgia|HI:Hawaii|ID:Idaho|IL:Illinois|IN:Indiana|IA:Iowa|KS:Kansas|KY:Kentucky|LA:Louisiana|ME:Maine|MD:Maryland|MA:Massachusetts|MI:Michigan|MN:Minnesota|MS:Mississippi|MO:Missouri|MT:Montana|NE:Nebraska|NV:Nevada|NH:New Hampshire|NJ:New Jersey|NM:New Mexico|NY:New York|NC:North Carolina|ND:North Dakota|OH:Ohio|OK:Oklahoma|OR:Oregon|PA:Pennsylvania|RI:Rhode Island|SC:South Carolina|SD:South Dakota|TN:Tennessee|TX:Texas|UT:Utah|VT:Vermont|VA:Virginia|WA:Washington|WV:West Virginia|WI:Wisconsin|WY:Wyoming'
     .split('|').map((s) => s.split(':')));
+  // Canadian provinces and territories. None of the codes is also a U.S. state code.
+  Object.assign(STATES, Object.fromEntries('AB:Alberta|BC:British Columbia|MB:Manitoba|NB:New Brunswick|NL:Newfoundland and Labrador|NS:Nova Scotia|NT:Northwest Territories|NU:Nunavut|ON:Ontario|PE:Prince Edward Island|QC:Quebec|SK:Saskatchewan|YT:Yukon'
+    .split('|').map((s) => s.split(':'))));
   const STATE_BY_NAME = Object.fromEntries(Object.entries(STATES).map(([a, n]) => [n.toLowerCase(), a]));
+  STATE_BY_NAME['québec'] = 'QC';
+  STATE_BY_NAME['newfoundland'] = 'NL';
+  STATE_BY_NAME['yukon territory'] = 'YT';
 
   const COUNTRY_GROUPS = [
     ['united states', 'united states of america', 'usa', 'us', 'u.s.', 'u.s.a.', 'america'],
@@ -511,7 +521,16 @@
     'pacific-islander': /\bnative hawaiian\b|\bpacific islander\b/,
     white: /\bwhite\b|\bcaucasian\b/,
     'two-or-more': /\btwo or more\b|\b2 or more\b|\bmulti-?racial\b|\bmore than one\b|\bmixed\b/,
+    // Canadian (Statistics Canada) groups
+    indigenous: /\bindigenous\b|\bfirst nations?\b|\bm[eé]tis\b|\binuit\b|\baboriginal\b/,
+    'south-asian': /\bsouth asian\b|\bpakistani\b|\bsri lankan\b|\bbangladeshi\b|\bpunjabi\b/,
+    'east-asian': /\beast asian\b|\bchinese\b|\bkorean\b|\bjapanese\b/,
+    'southeast-asian': /\bsouth ?-?east asian\b|\bfilipino\b|\bvietnamese\b|\bcambodian\b|\blaotian\b|\bthai\b|\bindonesian\b|\bmalaysian\b/,
+    'west-asian': /\barab\b|\bwest asian\b|\bmiddle eastern\b|\bnorth african\b|\biranian\b|\bafghan\b/,
+    'latin-american': /\blatin american\b/,
   };
+  // The Asian groups above, so a U.S. form's plain "Asian" is the fallback for any of them.
+  const ASIAN_GROUPS = ['south-asian', 'east-asian', 'southeast-asian'];
   const ANY_RACE = new RegExp(Object.values(RACES).map((r) => r.source).join('|'));
   const GENDERS = {
     female: has(/\b(female|woman|women)\b/, /\btrans/, DECLINE),
@@ -543,7 +562,10 @@
     if (/\btransgender\b|\btrans\b/.test(q)) return 'transgender';
     if (/\bsexual orientation\b|\borientation\b|\bsexuality\b/.test(q)) return 'orientation';
     if (NOT_SELF_ID.test(q)) return null;
+    if (/\bvisible minorit\w*|\bracialized\b/.test(q)) return 'visibleMinority';
     if (/\b(races?|racial|ethnicity|ethnic)\b/.test(q)) return 'race';
+    if (/\bindigenous\b|\baboriginal\b|\bfirst nations?\b|\bm[eé]tis\b|\binuit\b/.test(q)) return 'indigenous';
+    if (/\bidentify as (a )?wom[ae]n\b/.test(q)) return 'woman';
     if (/\bhispanic\b|\blatin[oax]\b/.test(q)) return 'hispanic';
     if (/\bveteran\b/.test(q)) return 'veteran';
     if (/\bdisab/.test(q)) return 'disability';
@@ -572,7 +594,13 @@
         const race = RACES[p.race];
         // A single race never matches "Two or more races", and "White (Not Hispanic or Latino)" is only
         // picked if you answered No to Hispanic or Latino.
-        if (race) out.push(has(race, DECLINE, p.race === 'two-or-more' ? null : RACES['two-or-more'], p.hispanicLatino === 'no' ? null : NOT_HISPANIC));
+        // "East Asian" also reads inside "South East Asian", so East Asian rules that one out.
+        const notSoutheast = p.race === 'east-asian' ? /\bsouth ?-?east\b/ : null;
+        if (race) out.push(has(race, DECLINE, notSoutheast, p.race === 'two-or-more' ? null : RACES['two-or-more'], p.hispanicLatino === 'no' ? null : NOT_HISPANIC));
+        if (ASIAN_GROUPS.includes(p.race)) {
+          const others = ASIAN_GROUPS.filter((g) => g !== p.race).map((g) => RACES[g]);
+          out.push(has(RACES.asian, DECLINE, RACES['two-or-more'], ...others));
+        }
         // An "Ethnicity" list with only Hispanic / Not Hispanic. Options that name a race don't count: Oracle's
         // "Select the races you identify with" ends every race with "(Not Hispanic or Latino)", and this used to
         // tick all of them.
@@ -600,6 +628,21 @@
         const others = Object.entries(PRONOUNS).filter(([k]) => k !== p.pronouns).map(([, re]) => re);
         return [has(mine, DECLINE, ...others)];
       }
+      case 'indigenous':
+        if (p.indigenous === 'decline') return DECLINED;
+        if (p.indigenous === 'yes') return [has(/^yes\b/, DECLINE), has(RACES.indigenous, /\bnot\b|\bnon-?indigenous\b/, DECLINE)];
+        if (p.indigenous === 'no') return [has(/^no\b/, DECLINE), has(/\bnot (an? )?indigenous\b|\bnon-?indigenous\b|\bnot (a member|first nations)/, DECLINE)];
+        return [];
+      case 'visibleMinority':
+        if (p.visibleMinority === 'decline') return DECLINED;
+        if (p.visibleMinority === 'yes') return [has(/^yes\b/, DECLINE), has(/\b(am|is|identify as) (a )?(member of a )?(visible minorit|racialized)/, /\bnot\b/, DECLINE)];
+        if (p.visibleMinority === 'no') return [has(/^no\b/, DECLINE), has(/\bnot (a )?(member of a )?(visible minorit|racialized)/, DECLINE)];
+        return [];
+      case 'woman':
+        if (p.gender === 'decline') return DECLINED;
+        if (p.gender === 'female') return [has(/^yes\b/, DECLINE)];
+        if (p.gender === 'male' || p.gender === 'nonbinary') return [has(/^no\b/, DECLINE)];
+        return [];
       case 'transgender':
         if (p.transgender === 'decline') return DECLINED;
         if (p.transgender === 'yes') return [has(/^yes\b/, DECLINE)];
