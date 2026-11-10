@@ -1,25 +1,32 @@
-# Redraws the README's star chart (branch star-chart-images) every 5 minutes,
-# or when started by hand from the Actions tab. It runs on a timer, not on
-# each new star, because a star-triggered run is listed under the name of the
-# person who starred, which turns the Actions tab into a log of who starred.
-# GitHub pauses timed workflows in a public repo after 60 days without
-# activity; the Actions tab then has a button to turn this one back on.
+# Redraws the README's star chart (branch star-chart-images). An outside cron
+# service starts it every 5 minutes through GitHub's API (a workflow_dispatch
+# with quiet set), because GitHub's own timer starts late and skips runs.
+# GitHub's timer still runs it hourly, in case the service stops. It runs on a
+# timer, not on each new star, because a star-triggered run is listed under
+# the name of the person who starred, which turns the Actions tab into a log
+# of who starred. GitHub pauses timed workflows in a public repo after 60 days
+# without activity; the Actions tab then has a button to turn this one back on.
 name: Star chart
 
 on:
   schedule:
-    # Every 5 minutes (GitHub's shortest), at :02, :07, :12 and so on. Off
-    # the hour, since GitHub's timers are most delayed on the hour. Busy times
-    # still delay or skip some runs.
-    - cron: "2-59/5 * * * *"
+    # Hourly at :17, the backup. Off the hour, since GitHub's timers are most
+    # delayed on the hour.
+    - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      quiet:
+        description: "Don't email if it fails (the cron service sets this)"
+        type: boolean
+        default: false
 
 # The repo gives workflows read-only access by default; this job pushes the
-# chart's branch.
+# chart's branch, and deletes its own old runs (the last step).
 permissions:
   contents: write
+  actions: write
 
-# Two runs (timed runs bunched up after a delay, or one started by hand)
+# Two runs (the cron service's and the hourly one, or one started by hand)
 # would otherwise push at once and one push would be refused. A queued run
 # reads the whole star list, so it covers the runs before it.
 concurrency:
@@ -29,11 +36,12 @@ concurrency:
 jobs:
   draw:
     runs-on: ubuntu-latest
-    # A failed timed run still counts as passed, so a GitHub hiccup doesn't
-    # send a failure email every so often (the script retries once first).
-    # A run started by hand still fails and emails: use one when the chart
-    # looks stale, to see the error.
-    continue-on-error: ${{ github.event_name == 'schedule' }}
+    # A failed timed or quiet run still counts as passed, so a GitHub hiccup
+    # doesn't send a failure email every so often (the script retries once
+    # first). A run started by hand without quiet still fails and emails: use
+    # one when the chart looks stale, to see the error. format() because the
+    # API may send quiet as the string "true" and the Actions tab as a boolean.
+    continue-on-error: ${{ github.event_name == 'schedule' || format('{0}', inputs.quiet) == 'true' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -65,3 +73,23 @@ jobs:
             -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             commit-tree "$tree" -m "star chart")
           git push --force origin "$commit:refs/heads/$BRANCH"
+
+      # Runs every 5 minutes would add about 300 lines a day to the Actions
+      # tab. This keeps the newest 20 finished runs of this workflow and deletes
+      # the rest, except failed ones (left for you to read and delete). GitHub
+      # lists runs newest first; this run isn't finished, so it's never listed.
+      # A delete that fails (another run got there first) is skipped.
+      - name: Delete old runs
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: 20
+        run: |
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/star-chart.yml/runs?status=completed&per_page=100" \
+            --jq '.workflow_runs[] | select(.conclusion != "failure") | .id' |
+            tail -n "+$((KEEP + 1))" |
+            while read -r id; do
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$id" >/dev/null ||
+                echo "Couldn't delete run $id; skipped."
+            done
