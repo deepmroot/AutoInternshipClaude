@@ -50,6 +50,15 @@ The skills you uploaded to the Claude app already work in its **Code** tab. For 
 
 In auto mode, Claude Code's safety check can block Claude from ticking agreement boxes or entering your profile on job sites. To allow it, add an `autoMode` rule to `~/.claude/settings.json` ([how](https://code.claude.com/docs/en/auto-mode-config)). Claude can't add the rule for you: auto mode doesn't let it loosen its own permissions.
 
+## Star history
+
+<a href="https://github.com/pqthangv/AutoInternshipClaude/stargazers">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/star-chart/stars-dark.svg">
+    <img alt="Star history chart" src=".github/star-chart/stars.svg">
+  </picture>
+</a>
+
 ## License
 
 [MIT](LICENSE). This is a personal project, not affiliated with or endorsed by Anthropic.

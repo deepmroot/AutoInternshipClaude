@@ -1,0 +1,48 @@
+# Redraws the README's star chart (.github/star-chart/) when someone stars the
+# repo, or when started by hand from the Actions tab. There is no timer on
+# purpose: GitHub pauses timed workflows in public repos after 60 days without
+# activity. Removing a star fires no event, so it shows at the next new star.
+name: Star chart
+
+on:
+  watch:
+    types: [started]
+  workflow_dispatch:
+
+# The repo gives workflows read-only access by default; this job pushes the chart.
+permissions:
+  contents: write
+
+# Stars seconds apart would otherwise push at once and one push would be
+# refused. A queued run reads the whole star list, so it covers the runs before it.
+concurrency:
+  group: star-chart
+  cancel-in-progress: false
+
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Draw the chart
+        run: python3 .github/scripts/star_chart.py
+        env:
+          # GitHub lists stargazers only to a signed-in caller.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The chart is the same file for the same stars, so this commits only
+      # when the stars changed.
+      - name: Commit it if it changed
+        run: |
+          git add .github/star-chart
+          if git diff --cached --quiet; then
+            echo "Chart unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "update star chart"
+          # Picks up anything pushed while this ran, so the push isn't refused.
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
