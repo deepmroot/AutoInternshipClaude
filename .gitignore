@@ -10,6 +10,9 @@ desktop.ini
 # Zips made for uploading the skills
 *.zip
 
+# Chrome Web Store upload files: the extension zip, screenshot and listing text
+/store-listing/
+
 # Local notes for Claude Code
 CLAUDE.md
 
