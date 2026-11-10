@@ -2,3 +2,5 @@
 .github/        export-ignore
 .gitattributes  export-ignore
 .gitignore      export-ignore
+# Read on GitHub through the Chrome Web Store listing's link.
+autointernship/PRIVACY.md  export-ignore
