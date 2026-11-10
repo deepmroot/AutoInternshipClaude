@@ -47,16 +47,26 @@
     panel.id = 'autointernship-report';
     panel.setAttribute('role', 'status');
     panel.setAttribute('aria-label', 'AutoInternship report');
-    css(panel, 'display: none; width: 340px; max-height: 50vh; overflow: auto; margin-top: 6px; padding: 10px 12px; background: #fff; color: #1d1d1b; border: 1px solid #ccc; border-radius: 8px 0 0 8px; box-shadow: 0 2px 10px rgba(0,0,0,.2);');
+    css(panel, 'display: none; position: relative; width: 340px; margin-top: 6px; background: #fff; color: #1d1d1b; border: 1px solid #ccc; border-radius: 8px 0 0 8px; box-shadow: 0 2px 10px rgba(0,0,0,.2);');
     // The panel's text is in a shadow root: it shows on screen and in screenshots, but not in the page
     // text, which gets the copy beside the form instead (see placeCopy). Otherwise pages read whole would
-    // carry the report twice.
+    // carry the report twice. Only the text scrolls, so the close button stays in view on a long report.
     const text = document.createElement('div');
     text.id = 'autointernship-report-text';
     text.attachShadow({ mode: 'open' });
-    css(text, 'display: block; white-space: pre-wrap;');
+    css(text, 'display: block; max-height: 50vh; overflow: auto; padding: 10px 30px 10px 12px; white-space: pre-wrap;');
 
-    panel.append(text);
+    // An × in the top corner. The right padding above keeps the text from running under it.
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.id = 'autointernship-report-close';
+    close.textContent = '×';
+    close.title = 'Close';
+    close.setAttribute('aria-label', 'Close AutoInternship report');
+    css(close, 'position: absolute; top: 4px; right: 6px; width: 24px; height: 24px; cursor: pointer; text-align: center; font-size: 20px; line-height: 22px; color: #555;');
+    close.addEventListener('click', hideReport);
+
+    panel.append(text, close);
     root.append(button, panel);
     attach();
     keeper.observe(document, { childList: true, subtree: true });
@@ -173,15 +183,6 @@
     const value = reportText(r);
     panel.querySelector('#autointernship-report-text').shadowRoot.textContent = value;
     placeCopy(value);
-    if (!panel.querySelector('button')) {
-      const close = document.createElement('button');
-      close.type = 'button';
-      close.textContent = 'Close';
-      close.setAttribute('aria-label', 'Close AutoInternship report');
-      css(close, 'display: block; margin-top: 8px; cursor: pointer; color: #555; text-decoration: underline;');
-      close.addEventListener('click', hideReport);
-      panel.appendChild(close);
-    }
     panel.style.display = 'block';
   }
 
