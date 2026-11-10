@@ -1,0 +1,4 @@
+# Left out of GitHub's "Download ZIP": repo upkeep, not part of the tools.
+.github/        export-ignore
+.gitattributes  export-ignore
+.gitignore      export-ignore

@@ -1,15 +1,17 @@
-# Redraws the README's star chart (branch star-chart-images) once a day, or when
-# started by hand from the Actions tab. It runs on a timer, not on each new
-# star, because a star-triggered run is listed under the name of the person
-# who starred, which turns the Actions tab into a log of who starred.
+# Redraws the README's star chart (branch star-chart-images) every 5 minutes,
+# or when started by hand from the Actions tab. It runs on a timer, not on
+# each new star, because a star-triggered run is listed under the name of the
+# person who starred, which turns the Actions tab into a log of who starred.
 # GitHub pauses timed workflows in a public repo after 60 days without
 # activity; the Actions tab then has a button to turn this one back on.
 name: Star chart
 
 on:
   schedule:
-    # 07:37 UTC daily. Off the hour, when GitHub's timers are least delayed.
-    - cron: "37 7 * * *"
+    # Every 5 minutes (GitHub's shortest), at :02, :07, :12 and so on. Off
+    # the hour, since GitHub's timers are most delayed on the hour. Busy times
+    # still delay or skip some runs.
+    - cron: "2-59/5 * * * *"
   workflow_dispatch:
 
 # The repo gives workflows read-only access by default; this job pushes the
@@ -17,9 +19,9 @@ on:
 permissions:
   contents: write
 
-# A timed run and one started by hand would otherwise push at once and one
-# push would be refused. A queued run reads the whole star list, so it covers
-# the runs before it.
+# Two runs (timed runs bunched up after a delay, or one started by hand)
+# would otherwise push at once and one push would be refused. A queued run
+# reads the whole star list, so it covers the runs before it.
 concurrency:
   group: star-chart
   cancel-in-progress: false
@@ -27,6 +29,11 @@ concurrency:
 jobs:
   draw:
     runs-on: ubuntu-latest
+    # A failed timed run still counts as passed, so a GitHub hiccup doesn't
+    # send a failure email every so often (the script retries once first).
+    # A run started by hand still fails and emails: use one when the chart
+    # looks stale, to see the error.
+    continue-on-error: ${{ github.event_name == 'schedule' }}
     steps:
       - uses: actions/checkout@v7
 
